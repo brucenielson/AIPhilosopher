@@ -172,3 +172,4 @@ test_docling.json
 /documents/*.json
 *.wav
 config.txt
+.idea/
