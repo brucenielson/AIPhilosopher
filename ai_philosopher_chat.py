@@ -171,7 +171,6 @@ def load_rag_chat(google_secret_param: str,
     )
 
 
-# noinspection PyShadowingNames
 def load_config_data():
     google_password: str = ""
     postgres_password: str = ""
@@ -208,13 +207,44 @@ def load_config_data():
     }
 
 
+def load_config_with_defaults(rag_chat: RagChat,
+                              title: str,
+                              system_instructions: str,
+                              model_name: str) -> (RagChat, dict[str, str]):
+    # Load the config data from the file
+    config_data = load_config_data()
+    if config_data["title"] is None or config_data["title"] == "":
+        config_data["title"] = title
+    if config_data["system_instructions"] is None or config_data["system_instructions"] == "":
+        config_data["system_instructions"] = system_instructions
+
+    # Check if google_password and postgres_password are not empty
+    if not (config_data["google_password"] == "" or config_data["postgres_password"] == "") and rag_chat is None:
+        # Attempt to load RagChat with loaded values
+        try:
+            rag_chat = load_rag_chat(config_data["google_password"],
+                                     config_data["postgres_password"],
+                                     config_data["postgres_user_name"],
+                                     config_data["postgres_db_name"],
+                                     config_data["postgres_table_name"],
+                                     config_data["postgres_host"],
+                                     int(config_data["postgres_port"]),
+                                     config_data["system_instructions"],
+                                     model_name=model_name)
+        except Exception as e:
+            print(f"Error loading RagChat: {e}")
+            rag_chat = None
+    # If RagChat was not loaded (None) then simply return the default values
+    return rag_chat, config_data
+
+
 def build_interface(title: str = 'RAG Chat',
                     system_instructions: str = "You are a helpful assistant.",
                     model_name="gemini-2.0-flash") -> gr.Interface:
 
     def load_event():
         nonlocal config_data, rag_chat
-        load_config()
+        rag_chat, config_data = load_config_with_defaults(rag_chat, title, system_instructions, model_name)
         # Return an update for each Textbox in the same order as the outputs list below.
         return (
             gr.update(value=config_data["title"]),
@@ -231,36 +261,9 @@ def build_interface(title: str = 'RAG Chat',
             gr.update(selected="Chat" if rag_chat is not None else "Config"),
         )
 
-    def load_config():
-        nonlocal rag_chat, config_data, title, system_instructions
-        # Load the config data from the file
-        config_data = load_config_data()
-        if config_data["title"] is None or config_data["title"] == "":
-            config_data["title"] = title
-        if config_data["system_instructions"] is None or config_data["system_instructions"] == "":
-            config_data["system_instructions"] = system_instructions
-
-        # Check if google_password and postgres_password are not empty
-        if not (config_data["google_password"] == "" or config_data["postgres_password"] == "") and rag_chat is None:
-            # Attempt to load RagChat with loaded values
-            try:
-                rag_chat = load_rag_chat(config_data["google_password"],
-                                         config_data["postgres_password"],
-                                         config_data["postgres_user_name"],
-                                         config_data["postgres_db_name"],
-                                         config_data["postgres_table_name"],
-                                         config_data["postgres_host"],
-                                         int(config_data["postgres_port"]),
-                                         config_data["system_instructions"],
-                                         model_name=model_name)
-            except Exception as e:
-                print(f"Error loading RagChat: {e}")
-                rag_chat = None
-        # If RagChat was not loaded (None) then simply return the default values
-
     rag_chat: Optional[RagChat] = None
     config_data: dict = {}
-    load_config()
+    rag_chat, config_data = load_config_with_defaults(rag_chat, title, system_instructions, model_name)
     default_tab: str = "Chat"
     if not rag_chat:
         # No config settings yet, so set Config tab as default
