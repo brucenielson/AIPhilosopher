@@ -41,10 +41,11 @@ def load_config_data() -> dict[str, str]:
     }
 
 
-def load_config_with_defaults(rag_chat: RagChat,
-                              title: str,
-                              system_instructions: str,
-                              model_name: str) -> (RagChat, dict[str, str]):
+def init_chat_config_tabs(rag_chat: RagChat,
+                          model_name: str,
+                          title: str = "RAG Chat",
+                          system_instructions: str = "You are a helpful assistant.",
+                          ) -> (RagChat, dict[str, str]):
     # Load the config data from the file
     config_data = load_config_data()
     if config_data["title"] is None or config_data["title"] == "":
@@ -224,7 +225,10 @@ def build_interface(title: str = 'RAG Chat',
 
     def load_event():
         nonlocal config_data, rag_chat
-        rag_chat, config_data = load_config_with_defaults(rag_chat, title, system_instructions, model_name)
+        rag_chat, config_data = init_chat_config_tabs(rag_chat=rag_chat,
+                                                      title=title,
+                                                      system_instructions=system_instructions,
+                                                      model_name=model_name)
         # Return an update for each Textbox in the same order as the outputs list below.
         return (
             gr.update(value=config_data["title"]),
@@ -243,7 +247,10 @@ def build_interface(title: str = 'RAG Chat',
 
     rag_chat: Optional[RagChat] = None
     config_data: dict = {}
-    rag_chat, config_data = load_config_with_defaults(rag_chat, title, system_instructions, model_name)
+    rag_chat, config_data = init_chat_config_tabs(rag_chat=rag_chat,
+                                                  title=title,
+                                                  system_instructions=system_instructions,
+                                                  model_name=model_name)
     default_tab: str = "Chat"
     if not rag_chat:
         # No config settings yet, so set Config tab as default
