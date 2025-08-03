@@ -13,13 +13,14 @@ from document_processor import DocumentProcessor
 from haystack import Document
 from typing import Optional, List, Dict, Any, Iterator, Union, Tuple
 from react_agent import format_document, ReActAgent
-from llm_message_utils import send_message
+from gemini_utils import send_message
 
 
 class RagChat:
     def __init__(self,
-                 google_secret: str,
+                 model: genai.GenerativeModel,
                  postgres_password: str,
+                 *,
                  postgres_user_name: str = "postgres",
                  postgres_db_name: str = "postgres",
                  postgres_table_name: str = "popper_archive",
@@ -27,16 +28,11 @@ class RagChat:
                  postgres_port: int = 5432,
                  postgres_table_recreate: bool = False,
                  postgres_table_embedder_model_name: str = "BAAI/llm-embedder",
-                 model_name: str = "gemini-2.0-flash",
                  system_instruction: Optional[str] = None, ):
 
         # Initialize Gemini Chat with a system instruction to act like philosopher Karl Popper.
-        self._model: Optional[genai.GenerativeModel] = None
+        self._model: Optional[genai.GenerativeModel] = model
         self._system_instruction: Optional[str] = system_instruction
-        self._google_secret: str = google_secret
-        self.initialize_model(model_name=model_name,
-                              system_instruction=system_instruction,
-                              google_secret=google_secret)
 
         # Initialize the document retrieval pipeline with top-5 quote retrieval.
         self._postgres_password: str = postgres_password
@@ -65,42 +61,22 @@ class RagChat:
         )
         self._load_pipeline: Optional[DocumentProcessor] = None
 
-    def initialize_model(self, model_name: str = "gemini-2.0-flash",
-                         system_instruction: Optional[str] = None,
-                         google_secret: Optional[str] = None):
-        genai.configure(api_key=google_secret)
-        self._google_secret = google_secret
-
-        if 'gemma' in model_name:
-            # If using Gemma, set the system instruction to None as it does not support it.
-            system_instruction = None
-
-        model: genai.GenerativeModel = genai.GenerativeModel(
-            model_name=model_name,  # gemini-2.0-flash-exp, gemini-2.0-flash, gemma-3-27b-it
-            system_instruction=system_instruction
-        )
-        self._model = model
-
     def ask_llm_question(self, prompt: str,
                          chat_history: Optional[List[Dict[str, Any]]] = None,
                          stream: bool = False) -> Union[generation_types.GenerateContentResponse, str]:
         if chat_history is None:
             chat_history = []
-        if self._google_secret is not None and self._google_secret != "":
-            # Start a new chat session with no history for this check.
-            # chat_session = self._model.start_chat(history=chat_history)
-            # chat_response = chat_session.send_message(prompt, stream=stream)
-            chat_session: ChatSession = self._model.start_chat(history=chat_history)
-            chat_response: GenerateContentResponse = send_message(chat_session, prompt, stream=stream)
-            # If streaming is enabled, return the response object.
-            if stream:
-                return chat_response
-            # If streaming is not enabled, return the full response text.
-            else:
-                return chat_response.text.strip()
+        # Start a new chat session with no history for this check.
+        # chat_session = self._model.start_chat(history=chat_history)
+        # chat_response = chat_session.send_message(prompt, stream=stream)
+        chat_session: ChatSession = self._model.start_chat(history=chat_history)
+        chat_response: GenerateContentResponse = send_message(chat_session, prompt, stream=stream)
+        # If streaming is enabled, return the response object.
+        if stream:
+            return chat_response
+        # If streaming is not enabled, return the full response text.
         else:
-            # If no secret is provided, throw an error
-            raise ValueError("Google secret is not provided. Please provide a valid API key.")
+            return chat_response.text.strip()
 
     def ask_llm_for_quote_relevance(self, message: str, docs: List[Document]) -> str:
         """

@@ -3,20 +3,24 @@ import os
 import gradio as gr
 from typing import Optional
 from rag_chat import RagChat
+# noinspection PyPackageRequirements
+import google.generativeai as genai
+from gemini_utils import initialize_gemini_model
 
 
 class RAGChatInterface:
     def __init__(
         self,
+        model: genai.GenerativeModel = "gemini-2.0-flash",
+        google_secret: Optional[str] = None,
         title: str = "RAG Chat",
         system_instructions: str = "You are a helpful assistant.",
-        model_name: str = "gemini-2.0-flash",
     ):
-        self.title = title
-        self.system_instructions = system_instructions
-        self.model_name = model_name
-        self.rag_chat: Optional[RagChat] = None
-        self.config_data: dict = {}
+        self._title = title
+        self._system_instructions = system_instructions
+        self._model = model
+        self._rag_chat: Optional[RagChat] = None
+        self._config_data: dict = {}
 
     @staticmethod
     def load_config_data() -> dict[str, str]:
@@ -43,6 +47,14 @@ class RAGChatInterface:
                     postgres_port = int(lines[6].strip())
                     title = lines[7].strip()
                     system_instructions = lines[8].strip()
+
+        # Login to Google Gemini if a password is provided
+        if google_password:
+            try:
+                genai.configure(api_key=google_password)
+            except Exception as e:
+                print(f"Error configuring Google Gemini: {e}")
+                google_password = ""
 
         return {
             "google_password": google_password,
@@ -181,14 +193,14 @@ class RAGChatInterface:
     def init_chat_config_tabs(self) -> tuple[Optional[RagChat], dict[str, str]]:
         config_data = self.load_config_data()
         if not config_data["title"]:
-            config_data["title"] = self.title
+            config_data["title"] = self._title
         if not config_data["system_instructions"]:
-            config_data["system_instructions"] = self.system_instructions
+            config_data["system_instructions"] = self._system_instructions
 
-        if config_data["google_password"] and config_data["postgres_password"] and self.rag_chat is None:
+        if config_data["google_password"] and config_data["postgres_password"] and self._rag_chat is None:
             try:
-                self.rag_chat = RagChat(
-                    google_secret=config_data["google_password"],
+                self._rag_chat = RagChat(
+                    self._model,
                     postgres_password=config_data["postgres_password"],
                     postgres_user_name=config_data["postgres_user_name"],
                     postgres_db_name=config_data["postgres_db_name"],
@@ -196,30 +208,29 @@ class RAGChatInterface:
                     postgres_host=config_data["postgres_host"],
                     postgres_port=int(config_data["postgres_port"]),
                     system_instruction=config_data["system_instructions"],
-                    model_name=self.model_name,
                 )
             except Exception as e:
                 print(f"Error loading RagChat: {e}")
-                self.rag_chat = None
+                self._rag_chat = None
 
-        return self.rag_chat, config_data
+        return self._rag_chat, config_data
 
     # Refactored sub-functions to class methods
     def load_event(self) -> tuple:
-        self.rag_chat, self.config_data = self.init_chat_config_tabs()
+        self._rag_chat, self._config_data = self.init_chat_config_tabs()
         return (
-            gr.update(value=self.config_data["title"]),
-            gr.update(value=self.config_data["system_instructions"]),
-            gr.update(value=self.config_data["google_password"]),
-            gr.update(value=self.config_data["postgres_password"]),
-            gr.update(value=self.config_data["postgres_user_name"]),
-            gr.update(value=self.config_data["postgres_db_name"]),
-            gr.update(value=self.config_data["postgres_table_name"]),
-            gr.update(value=self.config_data["postgres_host"]),
-            gr.update(value=str(self.config_data["postgres_port"])),
-            gr.update(interactive=(self.rag_chat is not None)),
-            gr.update(interactive=(self.rag_chat is not None)),
-            gr.update(selected="Chat" if self.rag_chat else "Config"),
+            gr.update(value=self._config_data["title"]),
+            gr.update(value=self._config_data["system_instructions"]),
+            gr.update(value=self._config_data["google_password"]),
+            gr.update(value=self._config_data["postgres_password"]),
+            gr.update(value=self._config_data["postgres_user_name"]),
+            gr.update(value=self._config_data["postgres_db_name"]),
+            gr.update(value=self._config_data["postgres_table_name"]),
+            gr.update(value=self._config_data["postgres_host"]),
+            gr.update(value=str(self._config_data["postgres_port"])),
+            gr.update(interactive=(self._rag_chat is not None)),
+            gr.update(interactive=(self._rag_chat is not None)),
+            gr.update(selected="Chat" if self._rag_chat else "Config"),
         )
 
     @staticmethod
@@ -227,13 +238,13 @@ class RAGChatInterface:
         return "", chat_history + [(message, None)]
 
     def process_message(self, message, chat_history):
-        for updated_history, ranked_docs, all_docs, research_docs in self.rag_chat.respond(message, chat_history):
+        for updated_history, ranked_docs, all_docs, research_docs in self._rag_chat.respond(message, chat_history):
             yield updated_history, ranked_docs.strip(), all_docs.strip(), research_docs
 
     def process_with_custom_progress(self, files, progress=gr.Progress()):
         if not files:
             return
-        file_enumerator = self.rag_chat.load_documents(files)
+        file_enumerator = self._rag_chat.load_documents(files)
         for i, file in enumerate(files):
             progress(i / len(files), desc=f"Processing {os.path.basename(file)}")
             next(file_enumerator)
@@ -267,8 +278,8 @@ class RAGChatInterface:
             file.write(f"{system_instructions_param}\n")
 
         # Reinitialize RagChat with new settings
-        self.rag_chat = RagChat(
-            google_secret=google_password_param,
+        self._rag_chat = RagChat(
+            self._model,
             postgres_password=postgres_password_param,
             postgres_user_name=postgres_user_name_param,
             postgres_db_name=postgres_db_name_param,
@@ -276,7 +287,6 @@ class RAGChatInterface:
             postgres_host=postgres_host_param,
             postgres_port=int(postgres_port_param),
             system_instruction=system_instructions_param,
-            model_name=self.model_name,
         )
 
         return (
@@ -290,8 +300,8 @@ class RAGChatInterface:
 
     def build_interface(self) -> gr.Interface:
         # Initialize chat config and determine default tab
-        self.rag_chat, self.config_data = self.init_chat_config_tabs()
-        default_tab = "Chat" if self.rag_chat else "Config"
+        self._rag_chat, self._config_data = self.init_chat_config_tabs()
+        default_tab = "Chat" if self._rag_chat else "Config"
 
         css = """
         #QuoteBoxes {
@@ -303,9 +313,9 @@ class RAGChatInterface:
 
         with gr.Blocks(css=css) as chat_interface:
             with gr.Tabs(selected=default_tab) as tabs:
-                chat_components = self.build_chat_tab(self.title, default_tab)
+                chat_components = self.build_chat_tab(self._title, default_tab)
                 load_components = self.build_load_tab(default_tab)
-                config_components = self.build_config_tab(self.config_data)
+                config_components = self.build_config_tab(self._config_data)
 
             # Unpack components
             chat_tab = chat_components["chat_tab"]
@@ -372,10 +382,11 @@ if __name__ == "__main__":
         "You are philosopher Karl Popper. Answer questions with philosophical insights, and use "
         "the provided quotes along with their metadata as reference."
     )
+    gemini_model = initialize_gemini_model("gemini-2.0-flash", system_instruction=sys_instruction)
     app = RAGChatInterface(
+        model=gemini_model,
         title="Karl Popper Chatbot",
         system_instructions=sys_instruction,
-        model_name="gemini-2.0-flash"
     )
     interface = app.build_interface()
     interface.launch(debug=True, max_file_size=100 * gr.FileSize.MB)

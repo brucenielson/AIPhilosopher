@@ -8,9 +8,24 @@ from google.generativeai.types.generation_types import GenerationConfig, Generat
 import google.generativeai as genai
 # noinspection PyPackageRequirements
 from google.generativeai.types import Tool
-from typing import Any, List, Union
+from typing import Any, List, Union, Optional
 import time
 import re
+
+
+def initialize_gemini_model(model_name: str = "gemini-2.0-flash",
+                            system_instruction: Optional[str] = None,
+                            google_secret: Optional[str] = None) -> genai.GenerativeModel:
+    genai.configure(api_key=google_secret)
+    if 'gemma' in model_name:
+        # If using Gemma, set the system instruction to None as it does not support it.
+        system_instruction = None
+
+    model: genai.GenerativeModel = genai.GenerativeModel(
+        model_name=model_name,  # gemini-2.0-flash-exp, gemini-2.0-flash, gemma-3-27b-it
+        system_instruction=system_instruction
+    )
+    return model
 
 
 def _extract_retry_seconds(exc: ResourceExhausted, default: int = 15) -> int:

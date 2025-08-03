@@ -17,7 +17,7 @@ from doc_retrieval_pipeline import DocRetrievalPipeline
 # noinspection PyPackageRequirements
 from haystack import Document
 from generator_model import get_secret
-from llm_message_utils import send_message
+from gemini_utils import send_message
 
 
 def format_document(doc, include_raw_info: bool = False) -> str:
