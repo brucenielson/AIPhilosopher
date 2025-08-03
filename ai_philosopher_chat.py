@@ -204,6 +204,90 @@ class RAGChatInterface:
 
         return self.rag_chat, config_data
 
+    # Refactored sub-functions to class methods
+    def load_event(self) -> tuple:
+        self.rag_chat, self.config_data = self.init_chat_config_tabs()
+        return (
+            gr.update(value=self.config_data["title"]),
+            gr.update(value=self.config_data["system_instructions"]),
+            gr.update(value=self.config_data["google_password"]),
+            gr.update(value=self.config_data["postgres_password"]),
+            gr.update(value=self.config_data["postgres_user_name"]),
+            gr.update(value=self.config_data["postgres_db_name"]),
+            gr.update(value=self.config_data["postgres_table_name"]),
+            gr.update(value=self.config_data["postgres_host"]),
+            gr.update(value=str(self.config_data["postgres_port"])),
+            gr.update(interactive=(self.rag_chat is not None)),
+            gr.update(interactive=(self.rag_chat is not None)),
+            gr.update(selected="Chat" if self.rag_chat else "Config"),
+        )
+
+    @staticmethod
+    def handle_user_message(message, chat_history):
+        return "", chat_history + [(message, None)]
+
+    def process_message(self, message, chat_history):
+        for updated_history, ranked_docs, all_docs, research_docs in self.rag_chat.respond(message, chat_history):
+            yield updated_history, ranked_docs.strip(), all_docs.strip(), research_docs
+
+    def process_with_custom_progress(self, files, progress=gr.Progress()):
+        if not files:
+            return
+        file_enumerator = self.rag_chat.load_documents(files)
+        for i, file in enumerate(files):
+            progress(i / len(files), desc=f"Processing {os.path.basename(file)}")
+            next(file_enumerator)
+        progress(1.0, desc="Finished processing")
+        time.sleep(0.5)
+        return "Finished processing"
+
+    def update_progress(self, files):
+        self.process_with_custom_progress(files)
+        return []
+
+    def update_config(self,
+                      google_password_param,
+                      postgres_password_param,
+                      postgres_user_name_param,
+                      postgres_db_name_param,
+                      postgres_table_name_param,
+                      postgres_host_param,
+                      postgres_port_param,
+                      title_param,
+                      system_instructions_param):
+        with open("config.txt", "w") as file:
+            file.write(f"{google_password_param}\n")
+            file.write(f"{postgres_password_param}\n")
+            file.write(f"{postgres_user_name_param}\n")
+            file.write(f"{postgres_db_name_param}\n")
+            file.write(f"{postgres_table_name_param}\n")
+            file.write(f"{postgres_host_param}\n")
+            file.write(f"{int(postgres_port_param)}\n")
+            file.write(f"{title_param}\n")
+            file.write(f"{system_instructions_param}\n")
+
+        # Reinitialize RagChat with new settings
+        self.rag_chat = RagChat(
+            google_secret=google_password_param,
+            postgres_password=postgres_password_param,
+            postgres_user_name=postgres_user_name_param,
+            postgres_db_name=postgres_db_name_param,
+            postgres_table_name=postgres_table_name_param,
+            postgres_host=postgres_host_param,
+            postgres_port=int(postgres_port_param),
+            system_instruction=system_instructions_param,
+            model_name=self.model_name,
+        )
+
+        return (
+            google_password_param, postgres_password_param,
+            postgres_user_name_param, postgres_db_name_param,
+            postgres_table_name_param, postgres_host_param,
+            postgres_port_param, title_param,
+            system_instructions_param, "## " + title_param,
+            gr.update(interactive=True), gr.update(interactive=True),
+        )
+
     def build_interface(self) -> gr.Interface:
         # Initialize chat config and determine default tab
         self.rag_chat, self.config_data = self.init_chat_config_tabs()
@@ -247,25 +331,9 @@ class RAGChatInterface:
             postgres_host_tb = config_components["postgres_host_tb"]
             postgres_port_tb = config_components["postgres_port_tb"]
 
-            def load_event():
-                self.rag_chat, self.config_data = self.init_chat_config_tabs()
-                return (
-                    gr.update(value=self.config_data["title"]),
-                    gr.update(value=self.config_data["system_instructions"]),
-                    gr.update(value=self.config_data["google_password"]),
-                    gr.update(value=self.config_data["postgres_password"]),
-                    gr.update(value=self.config_data["postgres_user_name"]),
-                    gr.update(value=self.config_data["postgres_db_name"]),
-                    gr.update(value=self.config_data["postgres_table_name"]),
-                    gr.update(value=self.config_data["postgres_host"]),
-                    gr.update(value=str(self.config_data["postgres_port"])),
-                    gr.update(interactive=(self.rag_chat is not None)),
-                    gr.update(interactive=(self.rag_chat is not None)),
-                    gr.update(selected="Chat" if self.rag_chat else "Config"),
-                )
-
+            # Bind events to class methods
             chat_interface.load(
-                load_event,
+                self.load_event,
                 outputs=[
                     chat_title_tb, sys_inst_box_tb, google_secret_tb, postgres_secret_tb,
                     postgres_user_tb, postgres_db_tb, postgres_table_tb, postgres_host_tb,
@@ -273,82 +341,16 @@ class RAGChatInterface:
                 ]
             )
 
-            def user_message(message, chat_history):
-                return "", chat_history + [(message, None)]
-
-            def process_message(message, chat_history):
-                for updated_history, ranked_docs, all_docs, research_docs in self.rag_chat.respond(message,
-                                                                                                   chat_history):
-                    yield updated_history, ranked_docs.strip(), all_docs.strip(), research_docs
-
-            def process_with_custom_progress(files, progress=gr.Progress()):
-                if not files:
-                    return
-                file_enumerator = self.rag_chat.load_documents(files)
-                for i, file in enumerate(files):
-                    progress(i / len(files), desc=f"Processing {os.path.basename(file)}")
-                    next(file_enumerator)
-                progress(1.0, desc="Finished processing")
-                time.sleep(0.5)
-                return "Finished processing"
-
-            def update_progress(files):
-                process_with_custom_progress(files)
-                return []
-
-            def update_config(
-                    google_password_param,
-                    postgres_password_param,
-                    postgres_user_name_param,
-                    postgres_db_name_param,
-                    postgres_table_name_param,
-                    postgres_host_param,
-                    postgres_port_param,
-                    title_param,
-                    system_instructions_param
-            ):
-                with open("config.txt", "w") as file:
-                    file.write(f"{google_password_param}\n")
-                    file.write(f"{postgres_password_param}\n")
-                    file.write(f"{postgres_user_name_param}\n")
-                    file.write(f"{postgres_db_name_param}\n")
-                    file.write(f"{postgres_table_name_param}\n")
-                    file.write(f"{postgres_host_param}\n")
-                    file.write(f"{int(postgres_port_param)}\n")
-                    file.write(f"{title_param}\n")
-                    file.write(f"{system_instructions_param}\n")
-
-                self.rag_chat = RagChat(
-                    google_secret=self.config_data["google_password"],
-                    postgres_password=self.config_data["postgres_password"],
-                    postgres_user_name=self.config_data["postgres_user_name"],
-                    postgres_db_name=self.config_data["postgres_db_name"],
-                    postgres_table_name=self.config_data["postgres_table_name"],
-                    postgres_host=self.config_data["postgres_host"],
-                    postgres_port=int(self.config_data["postgres_port"]),
-                    system_instruction=self.config_data["system_instructions"],
-                    model_name=self.model_name,
-                )
-
-                return (
-                    google_password_param, postgres_password_param,
-                    postgres_user_name_param, postgres_db_name_param,
-                    postgres_table_name_param, postgres_host_param,
-                    postgres_port_param, title_param,
-                    system_instructions_param, "## " + title_param,
-                    gr.update(interactive=True), gr.update(interactive=True),
-                )
-
-            msg.submit(user_message, [msg, chatbot], [msg, chatbot], queue=True)
+            msg.submit(self.handle_user_message, [msg, chatbot], [msg, chatbot], queue=True)
             msg.submit(
-                process_message,
+                self.process_message,
                 [msg, chatbot],
                 [chatbot, retrieved_quotes_box, raw_quotes_box, research_quote_box],
                 queue=True
             )
-            load_button.click(update_progress, inputs=file_input, outputs=file_input)
+            load_button.click(self.update_progress, inputs=file_input, outputs=file_input)
             save_settings.click(
-                update_config,
+                self.update_config,
                 inputs=[
                     google_secret_tb, postgres_secret_tb, postgres_user_tb, postgres_db_tb,
                     postgres_table_tb, postgres_host_tb, postgres_port_tb, chat_title_tb,
