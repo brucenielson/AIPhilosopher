@@ -5,6 +5,75 @@ from typing import Optional
 from rag_chat import RagChat
 
 
+def load_config_data() -> dict[str, str]:
+    google_password: str = ""
+    postgres_password: str = ""
+    postgres_user_name: str = "postgres"
+    postgres_db_name: str = "postgres"
+    postgres_table_name: str = "book_archive"
+    postgres_host: str = "localhost"
+    postgres_port: int = 5432
+    title: str = ""
+    system_instructions: str = ""
+    if os.path.exists("config.txt"):
+        with open("config.txt", "r") as f:
+            lines = f.readlines()
+            if len(lines) >= 9:
+                google_password = lines[0].strip()
+                postgres_password = lines[1].strip()
+                postgres_user_name = lines[2].strip()
+                postgres_db_name = lines[3].strip()
+                postgres_table_name = lines[4].strip()
+                postgres_host = lines[5].strip()
+                postgres_port = int(lines[6].strip())
+                title = lines[7].strip()
+                system_instructions = lines[8].strip()
+    return {
+        "google_password": google_password,
+        "postgres_password": postgres_password,
+        "postgres_user_name": postgres_user_name,
+        "postgres_db_name": postgres_db_name,
+        "postgres_table_name": postgres_table_name,
+        "postgres_host": postgres_host,
+        "postgres_port": int(postgres_port),
+        "system_instructions": system_instructions,
+        "title": title,
+    }
+
+
+def load_config_with_defaults(rag_chat: RagChat,
+                              title: str,
+                              system_instructions: str,
+                              model_name: str) -> (RagChat, dict[str, str]):
+    # Load the config data from the file
+    config_data = load_config_data()
+    if config_data["title"] is None or config_data["title"] == "":
+        config_data["title"] = title
+    if config_data["system_instructions"] is None or config_data["system_instructions"] == "":
+        config_data["system_instructions"] = system_instructions
+
+    # Check if google_password and postgres_password are not empty
+    if not (config_data["google_password"] == "" or config_data["postgres_password"] == "") and rag_chat is None:
+        # Attempt to load RagChat with loaded values
+        try:
+            rag_chat = RagChat(
+                google_secret=config_data["google_password"],
+                postgres_password=config_data["postgres_password"],
+                postgres_user_name=config_data["postgres_user_name"],
+                postgres_db_name=config_data["postgres_db_name"],
+                postgres_table_name=config_data["postgres_table_name"],
+                postgres_host=config_data["postgres_host"],
+                postgres_port=int(config_data["postgres_port"]),
+                system_instruction=config_data["system_instructions"],
+                model_name=model_name,
+            )
+        except Exception as e:
+            print(f"Error loading RagChat: {e}")
+            rag_chat = None
+    # If RagChat was not loaded (None) then simply return the default values
+    return rag_chat, config_data
+
+
 # --- Chat Tab ---
 def build_chat_tab(title: str, default_tab: str):
     with gr.Tab(label="Chat", id="Chat", interactive=(default_tab == "Chat")) as chat_tab:
@@ -149,95 +218,6 @@ def build_config_tab(config_data: dict):
     }
 
 
-def load_rag_chat(google_secret_param: str,
-                  postgres_password_param: str,
-                  postgres_user_name_param: str,
-                  postgres_db_name_param: str,
-                  postgres_table_name_param: str,
-                  postgres_host_param: str,
-                  postgres_port_param: int,
-                  system_instructions_param: str,
-                  model_name: str) -> RagChat:
-    return RagChat(
-        google_secret=google_secret_param,
-        postgres_password=postgres_password_param,
-        postgres_user_name=postgres_user_name_param,
-        postgres_db_name=postgres_db_name_param,
-        postgres_table_name=postgres_table_name_param,
-        postgres_host=postgres_host_param,
-        postgres_port=postgres_port_param,
-        system_instruction=system_instructions_param,
-        model_name=model_name,
-    )
-
-
-def load_config_data():
-    google_password: str = ""
-    postgres_password: str = ""
-    postgres_user_name: str = "postgres"
-    postgres_db_name: str = "postgres"
-    postgres_table_name: str = "book_archive"
-    postgres_host: str = "localhost"
-    postgres_port: int = 5432
-    title: str = ""
-    system_instructions: str = ""
-    if os.path.exists("config.txt"):
-        with open("config.txt", "r") as f:
-            lines = f.readlines()
-            if len(lines) >= 9:
-                google_password = lines[0].strip()
-                postgres_password = lines[1].strip()
-                postgres_user_name = lines[2].strip()
-                postgres_db_name = lines[3].strip()
-                postgres_table_name = lines[4].strip()
-                postgres_host = lines[5].strip()
-                postgres_port = int(lines[6].strip())
-                title = lines[7].strip()
-                system_instructions = lines[8].strip()
-    return {
-        "google_password": google_password,
-        "postgres_password": postgres_password,
-        "postgres_user_name": postgres_user_name,
-        "postgres_db_name": postgres_db_name,
-        "postgres_table_name": postgres_table_name,
-        "postgres_host": postgres_host,
-        "postgres_port": int(postgres_port),
-        "system_instructions": system_instructions,
-        "title": title,
-    }
-
-
-def load_config_with_defaults(rag_chat: RagChat,
-                              title: str,
-                              system_instructions: str,
-                              model_name: str) -> (RagChat, dict[str, str]):
-    # Load the config data from the file
-    config_data = load_config_data()
-    if config_data["title"] is None or config_data["title"] == "":
-        config_data["title"] = title
-    if config_data["system_instructions"] is None or config_data["system_instructions"] == "":
-        config_data["system_instructions"] = system_instructions
-
-    # Check if google_password and postgres_password are not empty
-    if not (config_data["google_password"] == "" or config_data["postgres_password"] == "") and rag_chat is None:
-        # Attempt to load RagChat with loaded values
-        try:
-            rag_chat = load_rag_chat(config_data["google_password"],
-                                     config_data["postgres_password"],
-                                     config_data["postgres_user_name"],
-                                     config_data["postgres_db_name"],
-                                     config_data["postgres_table_name"],
-                                     config_data["postgres_host"],
-                                     int(config_data["postgres_port"]),
-                                     config_data["system_instructions"],
-                                     model_name=model_name)
-        except Exception as e:
-            print(f"Error loading RagChat: {e}")
-            rag_chat = None
-    # If RagChat was not loaded (None) then simply return the default values
-    return rag_chat, config_data
-
-
 def build_interface(title: str = 'RAG Chat',
                     system_instructions: str = "You are a helpful assistant.",
                     model_name="gemini-2.0-flash") -> gr.Interface:
@@ -371,15 +351,17 @@ def build_interface(title: str = 'RAG Chat',
                 file.write(f"{system_instructions_param}\n")
 
             # Reset the RagChat instance with the new settings
-            rag_chat = load_rag_chat(google_password_param,
-                                     postgres_password_param,
-                                     postgres_user_name_param,
-                                     postgres_db_name_param,
-                                     postgres_table_name_param,
-                                     postgres_host_param,
-                                     int(postgres_port_param),
-                                     system_instructions_param,
-                                     model_name=model_name)
+            rag_chat = RagChat(
+                google_secret=config_data["google_password"],
+                postgres_password=config_data["postgres_password"],
+                postgres_user_name=config_data["postgres_user_name"],
+                postgres_db_name=config_data["postgres_db_name"],
+                postgres_table_name=config_data["postgres_table_name"],
+                postgres_host=config_data["postgres_host"],
+                postgres_port=int(config_data["postgres_port"]),
+                system_instruction=config_data["system_instructions"],
+                model_name=model_name,
+            )
 
             return (
                 google_password_param,
