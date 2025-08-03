@@ -297,11 +297,15 @@ class RAGChatInterface:
                 return []
 
             def update_config(
-                google_password_param, postgres_password_param,
-                postgres_user_name_param, postgres_db_name_param,
-                postgres_table_name_param, postgres_host_param,
-                postgres_port_param, title_param,
-                system_instructions_param
+                    google_password_param,
+                    postgres_password_param,
+                    postgres_user_name_param,
+                    postgres_db_name_param,
+                    postgres_table_name_param,
+                    postgres_host_param,
+                    postgres_port_param,
+                    title_param,
+                    system_instructions_param
             ):
                 with open("config.txt", "w") as file:
                     file.write(f"{google_password_param}\n")
