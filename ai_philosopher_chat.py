@@ -211,9 +211,10 @@ class RAGChatInterface:
 
         css = """
         #QuoteBoxes {
-            height: calc(100vh - 175px);
+            height: calc(100vh - 185px);
             overflow-y: auto;
             white-space: pre-wrap;
+        }
         """
 
         with gr.Blocks(css=css) as chat_interface:
