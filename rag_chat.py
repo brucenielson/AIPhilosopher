@@ -6,19 +6,18 @@ from google.generativeai import ChatSession
 # noinspection PyPackageRequirements
 from google.generativeai.types import generation_types
 # noinspection PyPackageRequirements
-import google.generativeai as genai
 from doc_retrieval_pipeline import DocRetrievalPipeline, SearchMode
 from document_processor import DocumentProcessor
 # noinspection PyPackageRequirements
 from haystack import Document
 from typing import Optional, List, Dict, Any, Iterator, Union, Tuple
 from react_agent import format_document, ReActAgent
-from gemini_utils import send_message
+from llm_client import LLMClient
 
 
 class RagChat:
     def __init__(self,
-                 model: genai.GenerativeModel,
+                 model: LLMClient,
                  postgres_password: str,
                  *,
                  postgres_user_name: str = "postgres",
@@ -31,7 +30,7 @@ class RagChat:
                  system_instruction: Optional[str] = None, ):
 
         # Initialize Gemini Chat with a system instruction to act like philosopher Karl Popper.
-        self._model: Optional[genai.GenerativeModel] = model
+        self._model: LLMClient = model
         self._system_instruction: Optional[str] = system_instruction
 
         # Initialize the document retrieval pipeline with top-5 quote retrieval.
@@ -67,10 +66,7 @@ class RagChat:
         if chat_history is None:
             chat_history = []
         # Start a new chat session with no history for this check.
-        # chat_session = self._model.start_chat(history=chat_history)
-        # chat_response = chat_session.send_message(prompt, stream=stream)
-        chat_session: ChatSession = self._model.start_chat(history=chat_history)
-        chat_response: GenerateContentResponse = send_message(chat_session, prompt, stream=stream)
+        chat_response: GenerateContentResponse = self._model.send_message(prompt, chat_history, stream=stream)
         # If streaming is enabled, return the response object.
         if stream:
             return chat_response

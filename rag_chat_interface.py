@@ -6,33 +6,32 @@ from rag_chat import RagChat
 # noinspection PyPackageRequirements
 import google.generativeai as genai
 from gemini_utils import initialize_gemini_model
+from llm_client import LLMClient
 
 
 class RAGChatInterface:
     def __init__(
         self,
-        model: genai.GenerativeModel = "gemini-2.0-flash",
-        google_secret: Optional[str] = None,
+        model: LLMClient,
         title: str = "RAG Chat",
         system_instructions: str = "You are a helpful assistant.",
     ):
-        self._title = title
-        self._system_instructions = system_instructions
-        self._model = model
+        self._title: str = title
+        self._system_instructions: str = system_instructions
+        self._model: LLMClient = model
         self._rag_chat: Optional[RagChat] = None
         self._config_data: dict = {}
 
-    @staticmethod
-    def load_config_data() -> dict[str, str]:
-        google_password = ""
-        postgres_password = ""
-        postgres_user_name = "postgres"
-        postgres_db_name = "postgres"
-        postgres_table_name = "book_archive"
-        postgres_host = "localhost"
-        postgres_port = 5432
-        title = ""
-        system_instructions = ""
+    def load_config_data(self) -> dict[str, str]:
+        google_password: str = ""
+        postgres_password: str = ""
+        postgres_user_name: str = "postgres"
+        postgres_db_name: str = "postgres"
+        postgres_table_name: str = "book_archive"
+        postgres_host: str = "localhost"
+        postgres_port: int = 5432
+        title: str = ""
+        system_instructions: str = ""
 
         if os.path.exists("config.txt"):
             with open("config.txt", "r") as f:
@@ -50,11 +49,7 @@ class RAGChatInterface:
 
         # Login to Google Gemini if a password is provided
         if google_password:
-            try:
-                genai.configure(api_key=google_password)
-            except Exception as e:
-                print(f"Error configuring Google Gemini: {e}")
-                google_password = ""
+            self._model.login(google_password)
 
         return {
             "google_password": google_password,
@@ -383,8 +378,9 @@ if __name__ == "__main__":
         "the provided quotes along with their metadata as reference."
     )
     gemini_model = initialize_gemini_model("gemini-2.0-flash", system_instruction=sys_instruction)
+    llm_client = LLMClient(model=gemini_model, system_instruction=sys_instruction)
     app = RAGChatInterface(
-        model=gemini_model,
+        model=llm_client,
         title="Karl Popper Chatbot",
         system_instructions=sys_instruction,
     )
