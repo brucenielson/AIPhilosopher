@@ -17,7 +17,8 @@ from doc_retrieval_pipeline import DocRetrievalPipeline
 # noinspection PyPackageRequirements
 from haystack import Document
 from generator_model import get_secret
-from gemini_utils import send_message
+from llm_client import LLMClient
+from gemini_utils import initialize_gemini_model
 
 
 def format_document(doc, include_raw_info: bool = False) -> str:
@@ -124,24 +125,22 @@ answer_declaration: Dict[str, Any] = {
 
 class ReActAgent:
     # Class-level attribute annotations
-    model_name: str
-    generative_model: genai.GenerativeModel
-    chat: ChatSession  # genai Chat session object
+    model: LLMClient
     tools: List[Tool]
     _wikipedia_search_history: List[str]
     _wikipedia_search_urls: List[str]
     should_continue_prompting: bool
 
-    def __init__(self, doc_retriever: DocRetrievalPipeline,
-                 model: str = 'gemini-2.0-flash',
+    def __init__(self,
+                 model: LLMClient,
+                 doc_retriever: DocRetrievalPipeline,
+                 *,
                  password: str = None) -> None:
         if password:
             genai.configure(api_key=password)
 
-        self.model_name: str = model
+        self._model: LLMClient = model
         self._doc_retriever: DocRetrievalPipeline = doc_retriever
-        self.generative_model: genai.GenerativeModel = genai.GenerativeModel(model)
-        self.chat: ChatSession = self.generative_model.start_chat(history=[])
 
         # Define the tools with our function declarations
         self.tools = [
@@ -294,10 +293,10 @@ class ReActAgent:
         return {"result": result}
 
     def send_chat_message(self, message: str, **generation_kwargs: Any) -> GenerateContentResponse:
-        return send_message(self.chat, message, tools=self.tools, **generation_kwargs)
+        return self._model.send_message(message, chat_history=[], tools=self.tools, **generation_kwargs)
 
     def generate_content(self, prompt: str, **generation_kwargs: Any) -> str:
-        return send_message(self.generative_model, prompt, tools=self.tools, **generation_kwargs)
+        return self._model.send_message(prompt, tools=self.tools, **generation_kwargs)
 
     def __call__(
             self,
@@ -393,11 +392,11 @@ if __name__ == "__main__":
     #     "in real life?"
     # )
     # Uncomment alternate questions as needed.
-    # users_question = "How many companions did Samuel Meladon have?"
+    users_question = "How many companions did Samuel Meladon have?"
     # users_question = "What is the most famous case of reincarnation in the world?"
     # users_question = "What are the total ages of everyone in the movie Star Wars: A New Hope?"
     # users_question = "Who was the mayor of Reykjavik in 2015 and what political party did they represent?"
-    users_question = "Is induction valid in some cases, particularly when doing statistics?"
+    # users_question = "Is induction valid in some cases, particularly when doing statistics?"
     # users_question = "What is Stephen King's birthday?"
 
     postgres_user_name: str = "postgres"
@@ -427,13 +426,15 @@ if __name__ == "__main__":
     )
 
     # Instantiate the ReActFunctionCaller session using the defined model.
-    gemini_react: ReActAgent = ReActAgent(doc_retriever=document_retriever)
+    gemini_model = initialize_gemini_model("gemini-2.0-flash")
+    llm_client = LLMClient(model=gemini_model, password=gemini_password)
+    gemini_react: ReActAgent = ReActAgent(llm_client, doc_retriever=document_retriever)
 
     # Start the conversation using the provided question and generation parameters.
     # Feel free to adjust generation_kwargs such as temperature for varied results.
     answer: str
     docs: List[Document]
-    answer, docs = gemini_react(users_question, temperature=0.2)
+    answer, docs = gemini_react(users_question, temperature=0.5)
     print()
     print(f"\nFinal Answer:")
     print(answer)

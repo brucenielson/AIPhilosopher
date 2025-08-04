@@ -102,7 +102,7 @@ class RagChat:
 
     def ask_llm_to_research(self, users_question: str) -> Tuple[str, List[Document]]:
         # Instantiate the ReActFunctionCaller session using the defined model.
-        gemini_react: ReActAgent = ReActAgent(doc_retriever=self._doc_pipeline)
+        gemini_react: ReActAgent = ReActAgent(self._model, doc_retriever=self._doc_pipeline)
         return gemini_react(users_question, temperature=0.2)
 
     def ask_llm_for_improved_query(self, message: str, chat_history: List[Dict[str, Any]]) -> str:

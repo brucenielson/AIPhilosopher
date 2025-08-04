@@ -42,8 +42,22 @@ class LLMClient:
 
     def send_message(self,
                      message: str,
-                     chat_history: Optional[List[Dict[str, Any]]],
-                     stream: bool = False) -> Union[GenerateContentResponse, str]:
+                     chat_history: Optional[List[Dict[str, Any]]] = None,
+                     stream: bool = False,
+                     tools: List[Tool] = None,
+                     config: GenerationConfig = None,
+                     **generation_kwargs: Any
+) -> Union[GenerateContentResponse, str]:
 
-        chat_session: ChatSession = self._model.start_chat(history=chat_history)
-        return send_message(chat_session, message, tools=self._tools, stream=stream, config=self._config)
+        model: Union[genai.GenerativeModel, ChatSession]
+        if chat_history is None:
+            model = self._model
+        else:
+            model = self._model.start_chat(history=chat_history)
+
+        return send_message(model,
+                            message,
+                            tools=tools if tools is not None else self._tools,
+                            stream=stream,
+                            config=config if config is not None else self._config,
+                            **generation_kwargs)
