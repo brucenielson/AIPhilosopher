@@ -2,8 +2,6 @@ import time
 # noinspection PyPackageRequirements
 from google.generativeai.types.generation_types import GenerateContentResponse
 # noinspection PyPackageRequirements
-from google.generativeai import ChatSession
-# noinspection PyPackageRequirements
 from google.generativeai.types import generation_types
 # noinspection PyPackageRequirements
 from doc_retrieval_pipeline import DocRetrievalPipeline, SearchMode
@@ -66,7 +64,10 @@ class RagChat:
         if chat_history is None:
             chat_history = []
         # Start a new chat session with no history for this check.
-        chat_response: GenerateContentResponse = self._model.send_message(prompt, chat_history, stream=stream)
+        chat_response: GenerateContentResponse = self._model.send_chat_message(prompt,
+                                                                               chat_history=chat_history,
+                                                                               chat_session_reset=True,
+                                                                               stream=stream)
         # If streaming is enabled, return the response object.
         if stream:
             return chat_response

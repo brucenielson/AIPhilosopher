@@ -1,17 +1,12 @@
 from __future__ import annotations
 import wikipedia
-# noinspection PyPackageRequirements
-from google.api_core.exceptions import ResourceExhausted
-import time
 from wikipedia.exceptions import DisambiguationError, PageError
 # noinspection PyPackageRequirements
 import google.generativeai as genai
 # noinspection PyPackageRequirements
 from google.generativeai.types import Tool, FunctionDeclaration
 # noinspection PyPackageRequirements
-from google.generativeai.types.generation_types import GenerationConfig, GenerateContentResponse
-# noinspection PyPackageRequirements
-from google.generativeai import ChatSession
+from google.generativeai.types.generation_types import GenerateContentResponse
 from typing import List, Dict, Any, Tuple
 from doc_retrieval_pipeline import DocRetrievalPipeline
 # noinspection PyPackageRequirements
@@ -293,10 +288,10 @@ class ReActAgent:
         return {"result": result}
 
     def send_chat_message(self, message: str, **generation_kwargs: Any) -> GenerateContentResponse:
-        return self._model.send_message(message, chat_history=[], tools=self.tools, **generation_kwargs)
+        return self._model.send_chat_message(message, tools=self.tools, **generation_kwargs)
 
     def generate_content(self, prompt: str, **generation_kwargs: Any) -> str:
-        return self._model.send_message(prompt, tools=self.tools, **generation_kwargs)
+        return self._model.generate_content(prompt, tools=self.tools, **generation_kwargs)
 
     def __call__(
             self,
@@ -385,6 +380,7 @@ class ReActAgent:
 # -----------------------------------------------------------------------------
 # Example usage of the ReActFunctionCaller class.
 # -----------------------------------------------------------------------------
+# noinspection GrazieInspection
 if __name__ == "__main__":
     # Define the question you want to ask.
     # users_question: str = (
@@ -392,11 +388,12 @@ if __name__ == "__main__":
     #     "in real life?"
     # )
     # Uncomment alternate questions as needed.
-    # users_question = "How many companions did Samuel Meladon have?"
+    # noinspection SpellCheckingInspection
+    users_question = "How many companions did Samuel Meladon have?"
     # users_question = "What is the most famous case of reincarnation in the world?"
     # users_question = "What are the total ages of everyone in the movie Star Wars: A New Hope?"
     # users_question = "Who was the mayor of Reykjavik in 2015 and what political party did they represent?"
-    users_question = "Is induction valid in some cases, particularly when doing statistics?"
+    # users_question = "Is induction valid in some cases, particularly when doing statistics?"
     # users_question = "What is Stephen King's birthday?"
 
     postgres_user_name: str = "postgres"

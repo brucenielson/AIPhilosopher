@@ -20,7 +20,8 @@ class LLMClient:
                  **generation_kwargs: Any
                  ):
 
-        self._model: Union[genai.GenerativeModel] = model
+        self._model: genai.GenerativeModel = model
+        self._chat_session: Optional[ChatSession] = None
         self._system_instruction: Optional[str] = system_instruction
         self._password: Optional[str] = password
         self._tools: List[Tool] = tools if tools is not None else []
@@ -40,24 +41,41 @@ class LLMClient:
             genai.configure(api_key=password)
             self._password = password
 
-    def send_message(self,
-                     message: str,
-                     chat_history: Optional[List[Dict[str, Any]]] = None,
-                     stream: bool = False,
-                     tools: List[Tool] = None,
-                     config: GenerationConfig = None,
-                     **generation_kwargs: Any
-) -> Union[GenerateContentResponse, str]:
+    def generate_content(self,
+                         message: str,
+                         stream: bool = False,
+                         tools: List[Tool] = None,
+                         config: GenerationConfig = None,
+                         **generation_kwargs: Any
+                         ) -> str:
 
-        model: Union[genai.GenerativeModel, ChatSession]
-        if chat_history is None:
-            model = self._model
-        else:
-            model = self._model.start_chat(history=chat_history)
-
-        return send_message(model,
+        return send_message(self._model,
                             message,
                             tools=tools if tools is not None else self._tools,
                             stream=stream,
                             config=config if config is not None else self._config,
                             **generation_kwargs)
+
+    def send_chat_message(self,
+                          message: str,
+                          chat_history: Optional[List[Dict[str, Any]]] = None,
+                          chat_session_reset: bool = False,
+                          stream: bool = False,
+                          tools: List[Tool] = None,
+                          config: GenerationConfig = None,
+                          **generation_kwargs: Any
+                          ) -> GenerateContentResponse:
+
+        if self._chat_session is None or chat_session_reset:
+            self._chat_session = self._model.start_chat(history=chat_history)
+
+        return send_message(self._chat_session,
+                            message,
+                            tools=tools if tools is not None else self._tools,
+                            stream=stream,
+                            config=config if config is not None else self._config,
+                            **generation_kwargs)
+
+    def reset_chat(self):
+        if self._chat_session is not None:
+            self._chat_session = None
