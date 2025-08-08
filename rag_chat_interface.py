@@ -3,10 +3,7 @@ import os
 import gradio as gr
 from typing import Optional
 from rag_chat import RagChat
-# noinspection PyPackageRequirements
-import google.generativeai as genai
-from gemini_utils import initialize_gemini_model
-from llm_client import LLMClient
+from llm_client import LLMClient, initialize_gemini_model
 
 
 class RAGChatInterface:

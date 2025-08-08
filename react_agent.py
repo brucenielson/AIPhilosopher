@@ -12,8 +12,7 @@ from doc_retrieval_pipeline import DocRetrievalPipeline
 # noinspection PyPackageRequirements
 from haystack import Document
 from generator_model import get_secret
-from llm_client import LLMClient
-from gemini_utils import initialize_gemini_model
+from llm_client import LLMClient, initialize_gemini_model
 
 
 def format_document(doc, include_raw_info: bool = False) -> str:
