@@ -392,11 +392,11 @@ if __name__ == "__main__":
     #     "in real life?"
     # )
     # Uncomment alternate questions as needed.
-    users_question = "How many companions did Samuel Meladon have?"
+    # users_question = "How many companions did Samuel Meladon have?"
     # users_question = "What is the most famous case of reincarnation in the world?"
     # users_question = "What are the total ages of everyone in the movie Star Wars: A New Hope?"
     # users_question = "Who was the mayor of Reykjavik in 2015 and what political party did they represent?"
-    # users_question = "Is induction valid in some cases, particularly when doing statistics?"
+    users_question = "Is induction valid in some cases, particularly when doing statistics?"
     # users_question = "What is Stephen King's birthday?"
 
     postgres_user_name: str = "postgres"
