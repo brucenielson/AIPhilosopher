@@ -92,7 +92,7 @@ class RAGChatInterface:
                         )
 
             clear.click(
-                lambda: ([], "", ""), None,
+                lambda: ([], "", "", ""), None,
                 [chatbot, retrieved_quotes_box, raw_quotes_box, research_quote_box],
                 queue=False
             )
