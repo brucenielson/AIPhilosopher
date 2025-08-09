@@ -423,7 +423,7 @@ if __name__ == "__main__":
 
     # Instantiate the ReActFunctionCaller session using the defined model.
     gemini_model = initialize_gemini_model("gemini-2.0-flash")
-    llm_client = LLMClient(model=gemini_model, password=gemini_password)
+    llm_client = LLMClient(model_or_name=gemini_model, password=gemini_password)
     gemini_react: ReActAgent = ReActAgent(llm_client, doc_retriever=document_retriever)
 
     # Start the conversation using the provided question and generation parameters.

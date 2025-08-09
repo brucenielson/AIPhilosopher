@@ -374,8 +374,7 @@ if __name__ == "__main__":
         "You are philosopher Karl Popper. Answer questions with philosophical insights, and use "
         "the provided quotes along with their metadata as reference."
     )
-    gemini_model = initialize_gemini_model("gemini-2.0-flash", system_instruction=sys_instruction)
-    llm_client = LLMClient(model=gemini_model, system_instruction=sys_instruction)
+    llm_client = LLMClient(model_or_name="gemini-2.0-flash", system_instruction=sys_instruction)
     app = RAGChatInterface(
         model=llm_client,
         title="Karl Popper Chatbot",

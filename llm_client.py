@@ -13,7 +13,18 @@ import time
 import re
 
 
-# Code to initialize the Gemini model with optional system instruction and Google secret key.
+# List of valid Gemini model_or_name names.
+VALID_GEMINI_MODELS = [
+    "gemini-2.0-flash-exp",
+    "gemini-2.0-flash",
+    "gemma-3-27b-it",
+    "gemma-3-8b-it",
+    "gemma-3-8b-it-v1",
+    "gemma-3-8b-it-v2"
+]
+
+
+# Code to initialize the Gemini model_or_name with optional system instruction and Google secret key.
 def initialize_gemini_model(model_name: str = "gemini-2.0-flash",
                             system_instruction: Optional[str] = None,
                             google_secret: Optional[str] = None) -> genai.GenerativeModel:
@@ -30,25 +41,44 @@ def initialize_gemini_model(model_name: str = "gemini-2.0-flash",
 
 
 class LLMClient:
-    def __init__(self, model: Union[genai.GenerativeModel],
+    def __init__(self, model_or_name: Union[str, genai.GenerativeModel],
                  *,
-                 password: Optional[str] = None,
+                 secret_token: Optional[str] = None,
                  system_instruction: Optional[str] = None,
                  tools: List[Tool] = None,
                  config: GenerationConfig = None,
                  **generation_kwargs: Any
                  ):
 
-        self._model: genai.GenerativeModel = model
+        self._model: Union[genai.GenerativeModel]
+        if type(model_or_name) is str:
+            if model_or_name in VALID_GEMINI_MODELS:
+                # If a model_or_name name is provided, initialize the Gemini model_or_name with it.
+                self._model = initialize_gemini_model(
+                    model_name=model_or_name,
+                    system_instruction=system_instruction,
+                    google_secret=secret_token
+                )
+            else:
+                # If an invalid model_or_name name is provided, raise an error.
+                raise ValueError(f"Invalid Gemini model name: {model_or_name}. "
+                                 f"Valid models are: {', '.join(VALID_GEMINI_MODELS)}.")
+        elif isinstance(model_or_name, genai.GenerativeModel):
+            # If a GenerativeModel instance is provided, use it directly.
+            self._model: genai.GenerativeModel = model_or_name
+        else:
+            # If neither a valid model_or_name name nor a GenerativeModel instance is provided, raise an error.
+            raise TypeError("model_or_name must be a string or an instance of genai.GenerativeModel.")
+
         self._chat_session: Optional[ChatSession] = None
         self._system_instruction: Optional[str] = system_instruction
-        self._password: Optional[str] = password
+        self._password: Optional[str] = secret_token
         self._tools: List[Tool] = tools if tools is not None else []
         self._config: Optional[GenerationConfig] = None
 
-        if password and isinstance(model, genai.GenerativeModel):
-            # Login to the Gemini API using the provided password.
-            genai.configure(api_key=password)
+        if secret_token and isinstance(model_or_name, genai.GenerativeModel):
+            # Login to the Gemini API using the provided secret_token.
+            genai.configure(api_key=secret_token)
 
         if config is None and generation_kwargs:
             # Set up the config with any provided generation parameters
