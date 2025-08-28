@@ -205,7 +205,10 @@ class LLMClient:
                     raise RuntimeError("Hugging Face support requires `transformers` and `huggingface_hub` packages.")
                 model_id = model_or_name.split(":", 1)[1]
                 # initialize HF wrapper
-                self._model = HFModelWrapper(model_id, system_instruction=system_instruction, hf_token=secret_token, device=hf_device)
+                self._model = HFModelWrapper(model_id,
+                                             system_instruction=system_instruction,
+                                             hf_token=secret_token,
+                                             device=hf_device)
             elif model_or_name in VALID_GEMINI_MODELS:
                 # If a Gemini model name is provided, initialize the Gemini model.
                 self._model = initialize_gemini_model(
