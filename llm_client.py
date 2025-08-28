@@ -145,12 +145,7 @@ class HFModelWrapper:
         out = self.pipeline(contents, **gen_kwargs)
         # pipeline returns a list of dicts with "generated_text"
         text = out[0].get("generated_text", "")
-
-        class Resp:
-            pass
-        r = Resp()
-        r.text = text
-        return r
+        return text
 
     def start_chat(self, history: Optional[List[Dict[str, Any]]] = None):
         return HFChatSession(self, history or [])
@@ -179,7 +174,7 @@ class HFChatSession:
         resp = self.wrapper.generate_content(prompt, generation_config=generation_config, tools=tools, stream=stream)
         # update history with user + assistant
         self.history.append({"role": "user", "content": message})
-        self.history.append({"role": "assistant", "content": resp.text})
+        self.history.append({"role": "assistant", "content": resp})
         return resp
 
 # ---------------------------------------------------------------------
@@ -275,7 +270,7 @@ class LLMClient:
                           tools: List[Tool] = None,
                           config: GenerationConfig = None,
                           **generation_kwargs: Any
-                          ) -> GenerateContentResponse:
+                          ) -> Union[GenerateContentResponse, str]:
 
         if self._chat_session is None or chat_session_reset:
             # if the model has start_chat, call it; otherwise, for non-chat models we emulate one

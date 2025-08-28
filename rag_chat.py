@@ -66,10 +66,11 @@ class RagChat:
         if chat_history is None:
             chat_history = []
         # Start a new chat session with no history for this check.
-        chat_response: GenerateContentResponse = self._model.send_chat_message(prompt,
-                                                                               chat_history=chat_history,
-                                                                               chat_session_reset=True,
-                                                                               stream=stream)
+        chat_response: Union[generation_types.GenerateContentResponse, str]
+        chat_response = self._model.send_chat_message(prompt,
+                                                      chat_history=chat_history,
+                                                      chat_session_reset=True,
+                                                      stream=stream)
         # If streaming is enabled, return the response object.
         if stream:
             return chat_response
