@@ -375,7 +375,7 @@ if __name__ == "__main__":
         "the provided quotes along with their metadata as reference."
     )
     # llm_client = LLMClient(model_or_name="gemini-2.0-flash", system_instruction=sys_instruction)
-    llm_client = LLMClient("hf:google/gemma-2-2b-it", system_instruction="You are concise.", hf_device=-1)
+    llm_client = LLMClient("gemini-2.0-flash", system_instruction="You are concise.", hf_device=-1)
     app = RAGChatInterface(
         model=llm_client,
         title="Karl Popper Chatbot",

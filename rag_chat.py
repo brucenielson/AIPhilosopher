@@ -30,6 +30,8 @@ class RagChat:
         # Initialize Gemini Chat with a system instruction to act like philosopher Karl Popper.
         self._model: LLMClient = model
         self._system_instruction: Optional[str] = system_instruction
+        if self._system_instruction is not None:
+            self._model.update_system_instruction(self._system_instruction)
 
         # Initialize the document retrieval pipeline with top-5 quote retrieval.
         self._postgres_password: str = postgres_password
@@ -277,6 +279,13 @@ class RagChat:
         # Send the modified query to Gemini.
         chat_response = self.ask_llm_question(modified_query, chat_history=gemini_chat_history, stream=True)
         answer_text = ""
+
+        if not isinstance(chat_response, GenerateContentResponse):
+            # If the response is not a GenerateContentResponse, then we are not streaming.
+            # So just return the answer text.
+            yield chat_history + [(message, chat_response)], retrieved_quotes, all_quotes, research_quotes
+            return
+
         # # --- Step 3: Stream the answer character-by-character ---
         for chunk in chat_response:
             try:

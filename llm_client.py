@@ -47,25 +47,33 @@ def initialize_gemini_model(model_name: str = "gemini-2.0-flash",
 
 # ----- Hugging Face wrapper: provides a minimal compatible interface -----
 def _hf_gen_kwargs_from_config(config: Optional[GenerationConfig]) -> Dict[str, Any]:
-    """Map a google GenerationConfig to HF pipeline kwargs (best-effort)."""
-    if config is None:
-        return {}
-
+    """Map a google GenerationConfig to HF pipeline kwargs (best-effort).
+    Ensure a sensible default for max_new_tokens so transformers doesn't use max_length=20."""
     kw: Dict[str, Any] = {}
-    # Best-effort mappings (names may differ across libs)
-    if hasattr(config, "max_output_tokens"):
+    if config is None:
+        # default generation length if nothing provided
+        kw["max_new_tokens"] = 256
+        return kw
+
+    if hasattr(config, "max_output_tokens") and getattr(config, "max_output_tokens") is not None:
         kw["max_new_tokens"] = int(getattr(config, "max_output_tokens"))
-    if hasattr(config, "temperature"):
+    if hasattr(config, "temperature") and getattr(config, "temperature") is not None:
         kw["temperature"] = float(getattr(config, "temperature"))
-    if hasattr(config, "top_p"):
+    if hasattr(config, "top_p") and getattr(config, "top_p") is not None:
         kw["top_p"] = float(getattr(config, "top_p"))
-    if hasattr(config, "top_k"):
+    if hasattr(config, "top_k") and getattr(config, "top_k") is not None:
         kw["top_k"] = int(getattr(config, "top_k"))
-    if hasattr(config, "do_sample"):
+    if hasattr(config, "do_sample") and getattr(config, "do_sample") is not None:
         kw["do_sample"] = bool(getattr(config, "do_sample"))
-    # fallback: if no sampling settings and temperature==0, make deterministic
-    if "temperature" in kw and kw["temperature"] == 0:
+
+    # fallback default if user didn't specify a token limit
+    if "max_new_tokens" not in kw:
+        kw["max_new_tokens"] = 256
+
+    # if temperature explicitly 0, make deterministic
+    if kw.get("temperature", None) == 0:
         kw["do_sample"] = False
+
     return kw
 
 
@@ -84,22 +92,60 @@ class HFModelWrapper:
         self.model_name = model_name
         self.system_instruction = system_instruction
         self.hf_token = hf_token
-        # device -1 => CPU, >=0 => CUDA device id
         self.device = device
-        # create pipeline
+
+        # create tokenizer (we keep it to check token lengths)
+        # use_fast=True for faster encoding if available
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=True)
+        # model_max_length may be > 1 or a very large number; None fallback handled later
+        self.model_max_length = getattr(self.tokenizer, "model_max_length", None)
+
+        # create pipeline but pass tokenizer to avoid duplicate downloads
         self.pipeline = pipeline(
             "text-generation",
             model=model_name,
-            tokenizer=model_name,
+            tokenizer=self.tokenizer,
             device=device,
             use_auth_token=hf_token
         )
 
     def generate_content(self, contents: str, generation_config: GenerationConfig = None, tools=None, stream=False):
         gen_kwargs = _hf_gen_kwargs_from_config(generation_config)
-        # pipeline returns list[dict] with 'generated_text'
+
+        # Ensure we avoid the transformers default max_length=20 issue:
+        # - compute tokenized input length
+        # - if input_len + max_new_tokens > model_max_length, then truncate prompt (tail) and/or reduce max_new_tokens
+        try:
+            enc = self.tokenizer(contents, return_tensors="pt", truncation=False)
+            input_len = enc["input_ids"].shape[1]
+            model_max = self.model_max_length if self.model_max_length and self.model_max_length > 0 else None
+
+            requested_new = int(gen_kwargs.get("max_new_tokens", 256))
+
+            if model_max is not None:
+                available = model_max - input_len
+                if available <= 0:
+                    # prompt alone is longer than model's max. Truncate prompt to keep the tail
+                    # choose keep_len to be model_max // 2 (arbitrary safe fallback) or model_max - 1
+                    keep = max(1, model_max // 2)
+                    # take last `keep` tokens
+                    tail_ids = enc["input_ids"][0, -keep:]
+                    contents = self.tokenizer.decode(tail_ids, skip_special_tokens=True, clean_up_tokenization_spaces=True)
+                    input_len = tail_ids.shape[0]
+                    available = model_max - input_len
+
+                # if requested would overflow, reduce it
+                if requested_new > available:
+                    gen_kwargs["max_new_tokens"] = max(1, available)
+        except Exception:
+            # if tokenizer fails for any reason, still ensure a default max_new_tokens is present
+            gen_kwargs.setdefault("max_new_tokens", 256)
+
+        # call pipeline (note: pass return_full_text only if you want the full concatenation)
         out = self.pipeline(contents, **gen_kwargs)
+        # pipeline returns a list of dicts with "generated_text"
         text = out[0].get("generated_text", "")
+
         class Resp:
             pass
         r = Resp()
@@ -245,6 +291,24 @@ class LLMClient:
 
     def reset_chat(self):
         self._chat_session = None
+
+    def update_system_instruction(self, new_instruction: str) -> None:
+        self._system_instruction = new_instruction
+
+        if isinstance(self._model, genai.GenerativeModel):
+            # Recreate Gemini model with new system instruction (Gemini doesn't allow hot update)
+            self._model = initialize_gemini_model(
+                model_name=self._model.model_name,
+                system_instruction=new_instruction,
+                google_secret=self._password
+            )
+
+        elif HF_AVAILABLE and isinstance(self._model, HFModelWrapper):
+            # Hugging Face wrapper can be updated directly
+            self._model.system_instruction = new_instruction
+
+        # Reset chat so the new system instruction is applied fresh
+        self.reset_chat()
 
     # Gemini/HF specific utility methods
     @staticmethod
