@@ -2,12 +2,7 @@ import torch
 from typing import Any, List, Optional, Dict
 # noinspection PyPackageRequirements
 from google.generativeai.types.generation_types import GenerationConfig
-# Optional HF imports
-try:
-    from transformers import pipeline, AutoTokenizer, AutoModelForCausalLM
-    HF_AVAILABLE = True
-except ImportError:
-    HF_AVAILABLE = False
+from transformers import pipeline, AutoTokenizer, AutoModelForCausalLM
 
 
 # ----- Hugging Face wrapper: provides a minimal compatible interface -----
@@ -53,8 +48,6 @@ class HFModelWrapper:
     def __init__(self, model_name: str,
                  system_instruction: Optional[str] = None,
                  hf_token: Optional[str] = None):
-        if not HF_AVAILABLE:
-            raise RuntimeError("transformers not installed. Install transformers[torch] and huggingface_hub.")
         self.model_name = model_name
         self.system_instruction = system_instruction
         self.hf_token = hf_token

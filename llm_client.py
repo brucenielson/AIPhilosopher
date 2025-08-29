@@ -9,7 +9,7 @@ from google.generativeai.types import Tool
 from typing import Any, List, Union, Optional, Dict
 import time
 import re
-from hf_model_wrapper import HFModelWrapper, HF_AVAILABLE
+from hf_model_wrapper import HFModelWrapper
 from gemini_utils import initialize_gemini_model, VALID_GEMINI_MODELS
 
 
@@ -28,8 +28,6 @@ class LLMClient:
         if isinstance(model_or_name, str):
             # If model name contains a '/' this is a Hugging Face model
             if "/" in model_or_name:
-                if not HF_AVAILABLE:
-                    raise RuntimeError("Hugging Face support requires `transformers` and `huggingface_hub` packages.")
                 # initialize HF wrapper
                 self._model = HFModelWrapper(model_or_name,
                                              system_instruction=system_instruction,
@@ -46,7 +44,7 @@ class LLMClient:
                                  f"Valid Gemini models are: {', '.join(VALID_GEMINI_MODELS)}.")
         elif isinstance(model_or_name, genai.GenerativeModel):
             self._model = model_or_name
-        elif HF_AVAILABLE and isinstance(model_or_name, HFModelWrapper):
+        elif isinstance(model_or_name, HFModelWrapper):
             self._model = model_or_name
         else:
             raise TypeError("model_or_name must be a string, an instance of genai.GenerativeModel, or HFModelWrapper.")
@@ -70,7 +68,7 @@ class LLMClient:
         if isinstance(self._model, genai.GenerativeModel):
             genai.configure(api_key=password)
             self._password = password
-        elif HF_AVAILABLE and isinstance(self._model, HFModelWrapper):
+        elif isinstance(self._model, HFModelWrapper):
             # For HF, store token and re-create pipeline if desired.
             self._model.hf_token = password
             # NOTE: pipeline re-creation might be necessary depending on auth scope.
@@ -133,7 +131,7 @@ class LLMClient:
                 google_secret=self._password
             )
 
-        elif HF_AVAILABLE and isinstance(self._model, HFModelWrapper):
+        elif isinstance(self._model, HFModelWrapper):
             # Hugging Face wrapper can be updated directly
             self._model.system_instruction = new_instruction
 
