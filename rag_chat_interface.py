@@ -1,5 +1,6 @@
 import time
 import os
+os.environ["TORCH_COMPILE_DISABLE"] = "1"
 import gradio as gr
 from typing import Optional
 from rag_chat import RagChat
@@ -376,7 +377,7 @@ if __name__ == "__main__":
     )
     # llm_client = LLMClient(model_or_name="gemini-2.0-flash", "google/gemma-2-2b-it", "hf:google/gemma-3-270m"
     # system_instruction=sys_instruction)
-    llm_client = LLMClient("hf:google/gemma-3-270m", system_instruction="You are concise.", hf_device=-1)
+    llm_client = LLMClient("hf:google/gemma-2-2b-it", system_instruction="You are concise.")
     app = RAGChatInterface(
         model=llm_client,
         title="Karl Popper Chatbot",
