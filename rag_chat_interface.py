@@ -1,6 +1,5 @@
 # *** top of file, before importing torch or transformers ***
 import os
-
 # Disable TorchDynamo compile attempts entirely
 os.environ["TORCH_COMPILE_DISABLE"] = "1"
 
@@ -12,8 +11,6 @@ import gradio as gr
 from typing import Optional
 from rag_chat import RagChat
 from llm_client import LLMClient
-os.environ["TORCH_COMPILE_DISABLE"] = "1"
-
 
 class RAGChatInterface:
     def __init__(
@@ -21,12 +18,14 @@ class RAGChatInterface:
         model: LLMClient,
         title: str = "RAG Chat",
         system_instructions: str = "You are a helpful assistant.",
+        llm_top_k: int = 5,
     ):
         self._title: str = title
         self._system_instructions: str = system_instructions
         self._model: LLMClient = model
         self._rag_chat: Optional[RagChat] = None
         self._config_data: dict = {}
+        self._llm_top_k: int = llm_top_k
 
     def load_config_data(self) -> dict[str, str]:
         google_password: str = ""
@@ -209,6 +208,7 @@ class RAGChatInterface:
                     postgres_host=config_data["postgres_host"],
                     postgres_port=int(config_data["postgres_port"]),
                     system_instruction=config_data["system_instructions"],
+                    llm_top_k=self._llm_top_k,
                 )
             except Exception as e:
                 print(f"Error loading RagChat: {e}")
@@ -288,6 +288,7 @@ class RAGChatInterface:
             postgres_host=postgres_host_param,
             postgres_port=int(postgres_port_param),
             system_instruction=system_instructions_param,
+            llm_top_k=self._llm_top_k,
         )
 
         return (
@@ -383,13 +384,14 @@ if __name__ == "__main__":
         "You are philosopher Karl Popper. Answer questions with philosophical insights, and use "
         "the provided quotes along with their metadata as reference."
     )
-    # llm_client = LLMClient(model_or_name="gemini-2.0-flash", "google/gemma-2-2b-it", "hf:google/gemma-3-270m"
+    # llm_client = LLMClient(model_or_name="gemini-2.0-flash", "google/gemma-2-2b-it", "google/gemma-3-270m"
     # system_instruction=sys_instruction)
-    llm_client = LLMClient("hf:google/gemma-2-2b-it", system_instruction="You are concise.")
+    llm_client = LLMClient("google/gemma-3-270m", system_instruction="You are concise.")
     app = RAGChatInterface(
         model=llm_client,
         title="Karl Popper Chatbot",
         system_instructions=sys_instruction,
+        llm_top_k=3,
     )
     interface = app.build_interface()
     interface.launch(debug=True, max_file_size=100 * gr.FileSize.MB)

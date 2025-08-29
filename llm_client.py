@@ -212,13 +212,12 @@ class LLMClient:
         self._model: Union[genai.GenerativeModel, HFModelWrapper]
         # String identifier cases
         if isinstance(model_or_name, str):
-            # Hugging Face string prefix: 'hf:MODEL_ID' (convention used here)
-            if model_or_name.startswith("hf:") or model_or_name.startswith("huggingface:"):
+            # If model name contains a '/' this is a Hugging Face model
+            if "/" in model_or_name:
                 if not HF_AVAILABLE:
                     raise RuntimeError("Hugging Face support requires `transformers` and `huggingface_hub` packages.")
-                model_id = model_or_name.split(":", 1)[1]
                 # initialize HF wrapper
-                self._model = HFModelWrapper(model_id,
+                self._model = HFModelWrapper(model_or_name,
                                              system_instruction=system_instruction,
                                              hf_token=secret_token)
             elif model_or_name in VALID_GEMINI_MODELS:
