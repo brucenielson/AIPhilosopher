@@ -273,12 +273,12 @@ class LLMClient:
                          **generation_kwargs: Any
                          ) -> str:
 
-        return LLMClient._send_gemini_message(self._model,
-                                              message,
-                                              tools=tools if tools is not None else self._tools,
-                                              stream=stream,
-                                              config=config if config is not None else self._config,
-                                              **generation_kwargs)
+        return LLMClient._send_message(self._model,
+                                       message,
+                                       tools=tools if tools is not None else self._tools,
+                                       stream=stream,
+                                       config=config if config is not None else self._config,
+                                       **generation_kwargs)
 
     def send_chat_message(self,
                           message: str,
@@ -298,12 +298,12 @@ class LLMClient:
                 # fallback: create a dummy HFChatSession-like wrapper if possible
                 raise RuntimeError("Underlying model does not support chat sessions.")
 
-        return LLMClient._send_gemini_message(self._chat_session,
-                                              message,
-                                              tools=tools if tools is not None else self._tools,
-                                              stream=stream,
-                                              config=config if config is not None else self._config,
-                                              **generation_kwargs)
+        return LLMClient._send_message(self._chat_session,
+                                       message,
+                                       tools=tools if tools is not None else self._tools,
+                                       stream=stream,
+                                       config=config if config is not None else self._config,
+                                       **generation_kwargs)
 
     def reset_chat(self):
         self._chat_session = None
@@ -343,12 +343,12 @@ class LLMClient:
         return default
 
     @staticmethod
-    def _send_gemini_message(model: Any,
-                             message: str,
-                             tools: List[Tool] = None,
-                             stream: bool = False,
-                             config: GenerationConfig = None,
-                             **generation_kwargs: Any) -> Union[GenerateContentResponse, str]:
+    def _send_message(model: Any,
+                      message: str,
+                      tools: List[Tool] = None,
+                      stream: bool = False,
+                      config: GenerationConfig = None,
+                      **generation_kwargs: Any) -> Union[GenerateContentResponse, str]:
 
         if config is None and generation_kwargs:
             config = GenerationConfig(**generation_kwargs)
@@ -378,12 +378,12 @@ class LLMClient:
                 delay = 15
             print(f"\nRate limit exceeded. Retrying in {delay} seconds...")
             time.sleep(delay)
-            return LLMClient._send_gemini_message(model,
-                                                  message,
-                                                  tools=tools,
-                                                  stream=stream,
-                                                  config=config,
-                                                  **generation_kwargs)
+            return LLMClient._send_message(model,
+                                           message,
+                                           tools=tools,
+                                           stream=stream,
+                                           config=config,
+                                           **generation_kwargs)
         except Exception as e:
             # A simple retry heuristic for HF rate-limit-style errors
             msg = str(e).lower()
@@ -392,11 +392,11 @@ class LLMClient:
                 delay = 10
                 print(f"Rate limit-like error detected from HF/provider. Retrying in {delay} seconds...")
                 time.sleep(delay)
-                return LLMClient._send_gemini_message(model,
-                                                      message,
-                                                      tools=tools,
-                                                      stream=stream,
-                                                      config=config,
-                                                      **generation_kwargs)
+                return LLMClient._send_message(model,
+                                               message,
+                                               tools=tools,
+                                               stream=stream,
+                                               config=config,
+                                               **generation_kwargs)
             print(f"Error during chat message sending: {e}")
             raise

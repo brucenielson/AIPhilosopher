@@ -240,7 +240,7 @@ class RagChat:
             ranked_docs = [doc for doc in retrieved_docs if hasattr(doc, 'score') and doc.score >= threshold]
 
         # If we have under 5 quotes or the max score is under 0.6 then attempt ReAct research
-        if len(ranked_docs) < 5 or max_score < 0.6:
+        if len(ranked_docs) < self._llm_top_k or max_score < 0.6:
             # Ask the LLM to do its own research
             research_response, research_docs = self.ask_llm_to_research(message)
 
