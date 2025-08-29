@@ -147,7 +147,6 @@ class HFModelWrapper:
                     keep = max(1, model_max // 2)
                     # take last `keep` tokens
                     tail_ids = enc["input_ids"][0, -keep:]
-                    contents = self.tokenizer.decode(tail_ids, skip_special_tokens=True, clean_up_tokenization_spaces=True)
                     contents = self.tokenizer.decode(tail_ids,
                                                      skip_special_tokens=True,
                                                      clean_up_tokenization_spaces=True)
