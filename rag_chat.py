@@ -26,11 +26,13 @@ class RagChat:
                  postgres_table_recreate: bool = False,
                  postgres_table_embedder_model_name: str = "BAAI/llm-embedder",
                  system_instruction: Optional[str] = None,
-                 llm_top_k: int = 5):
+                 llm_top_k: int = 5,
+                 retriever_top_k_docs: int = 100) -> None:
 
         # Initialize Gemini Chat with a system instruction to act like philosopher Karl Popper.
         self._model: LLMClient = model
         self._llm_top_k: int = llm_top_k
+        self._retriever_top_k_docs: int = retriever_top_k_docs
         self._system_instruction: Optional[str] = system_instruction
         if self._system_instruction is not None:
             self._model.update_system_instruction(self._system_instruction)
@@ -54,7 +56,7 @@ class RagChat:
             db_name=self._postgres_db_name,
             verbose=False,
             llm_top_k=llm_top_k,
-            retriever_top_k_docs=100,
+            retriever_top_k_docs=retriever_top_k_docs,
             include_outputs_from=None,
             search_mode=SearchMode.HYBRID,
             use_reranker=True,

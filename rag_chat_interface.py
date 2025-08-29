@@ -19,6 +19,7 @@ class RAGChatInterface:
         title: str = "RAG Chat",
         system_instructions: str = "You are a helpful assistant.",
         llm_top_k: int = 5,
+        retriever_top_k_docs=10,
     ):
         self._title: str = title
         self._system_instructions: str = system_instructions
@@ -26,6 +27,7 @@ class RAGChatInterface:
         self._rag_chat: Optional[RagChat] = None
         self._config_data: dict = {}
         self._llm_top_k: int = llm_top_k
+        self._retriever_top_k_docs: int = retriever_top_k_docs
 
     def load_config_data(self) -> dict[str, str]:
         google_password: str = ""
@@ -209,6 +211,7 @@ class RAGChatInterface:
                     postgres_port=int(config_data["postgres_port"]),
                     system_instruction=config_data["system_instructions"],
                     llm_top_k=self._llm_top_k,
+                    retriever_top_k_docs=self._retriever_top_k_docs,
                 )
             except Exception as e:
                 print(f"Error loading RagChat: {e}")
@@ -289,6 +292,7 @@ class RAGChatInterface:
             postgres_port=int(postgres_port_param),
             system_instruction=system_instructions_param,
             llm_top_k=self._llm_top_k,
+            retriever_top_k_docs=self._retriever_top_k_docs,
         )
 
         return (
@@ -392,6 +396,7 @@ if __name__ == "__main__":
         title="Karl Popper Chatbot",
         system_instructions=sys_instruction,
         llm_top_k=3,
+        retriever_top_k_docs=10,
     )
     interface = app.build_interface()
     interface.launch(debug=True, max_file_size=100 * gr.FileSize.MB)
