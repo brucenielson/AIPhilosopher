@@ -1,22 +1,7 @@
-# *** top of file, before importing torch or transformers ***
-import os
-
-# Disable TorchDynamo compile attempts entirely
-os.environ["TORCH_COMPILE_DISABLE"] = "1"
-
-# Silence Dynamo logs (optional)
-os.environ["TORCH_LOGS"] = ""
-# If you still see verbose output, also clear TORCHDYNAMO_VERBOSE:
-os.environ["TORCHDYNAMO_VERBOSE"] = "0"
-
-import traceback
-
 # noinspection PyPackageRequirements
 import google.generativeai as genai
 # noinspection PyPackageRequirements
 from google.api_core.exceptions import ResourceExhausted
-# noinspection PyPackageRequirements
-from google.generativeai import ChatSession
 # noinspection PyPackageRequirements
 from google.generativeai.types.generation_types import GenerationConfig, GenerateContentResponse
 # noinspection PyPackageRequirements
@@ -25,20 +10,9 @@ from typing import Any, List, Union, Optional, Dict
 import time
 import re
 import torch
-print("torch:", torch.__version__)
-if hasattr(torch, "_dynamo"):
-    print("torch._dynamo present")
-    try:
-        print("torch._dynamo.config.suppress_errors:", torch._dynamo.config.suppress_errors)
-    except Exception as ex:
-        print("Cannot read torch._dynamo.config.suppress_errors:", ex)
-    print("has disable():", hasattr(torch._dynamo, "disable"))
-else:
-    print("torch._dynamo not present")
 
 # Optional HF imports
 try:
-    from transformers import pipeline, AutoTokenizer, AutoModelForCausalLM
     from transformers import pipeline, AutoTokenizer, AutoModelForCausalLM
     HF_AVAILABLE = True
 except Exception:
@@ -110,7 +84,8 @@ class HFModelWrapper:
     The returned objects have a `.text` attribute so existing code which uses
     getattr(response, "text", None) continues to work.
     """
-    def __init__(self, model_name: str, system_instruction: Optional[str] = None,
+    def __init__(self, model_name: str,
+                 system_instruction: Optional[str] = None,
                  hf_token: Optional[str] = None):
         if not HF_AVAILABLE:
             raise RuntimeError("transformers not installed. Install transformers[torch] and huggingface_hub.")
@@ -124,8 +99,7 @@ class HFModelWrapper:
         else:
             device = -1  # CPU
             print("Using device: CPU")
-
-        self.device: int = device
+        self.device = device
 
         # Load tokenizer and model with token
         # create tokenizer (we keep it to check token lengths)
@@ -174,6 +148,9 @@ class HFModelWrapper:
                     # take last `keep` tokens
                     tail_ids = enc["input_ids"][0, -keep:]
                     contents = self.tokenizer.decode(tail_ids, skip_special_tokens=True, clean_up_tokenization_spaces=True)
+                    contents = self.tokenizer.decode(tail_ids,
+                                                     skip_special_tokens=True,
+                                                     clean_up_tokenization_spaces=True)
                     input_len = tail_ids.shape[0]
                     available = model_max - input_len
 
@@ -184,44 +161,8 @@ class HFModelWrapper:
             # if tokenizer fails for any reason, still ensure a default max_new_tokens is present
             gen_kwargs.setdefault("max_new_tokens", 256)
 
-        # ... inside generate_content, where you call the pipeline ...
-        try:
-            # If torch._dynamo.disable exists, use it to force eager execution for this call.
-            dynamo = getattr(torch, "_dynamo", None)
-            if dynamo is not None and hasattr(dynamo, "disable"):
-                try:
-                    with dynamo.disable():
-                        out = self.pipeline(contents, **gen_kwargs)
-                except Exception as inner_exc:
-                    # If disabling raised for some reason, fallback to a direct call (and handle below)
-                    print("Warning: torch._dynamo.disable() raised; falling back to direct pipeline call.")
-                    traceback.print_exc()
-                    out = self.pipeline(contents, **gen_kwargs)
-            else:
-                # No dynamo available, just call pipeline normally
-                out = self.pipeline(contents, **gen_kwargs)
-
-        except Exception as e:
-            # Print full debug info so we can see whether it's still Dynamo or something else
-            print("Hugging Face pipeline raised an exception:", type(e), repr(e))
-            traceback.print_exc()
-
-            msg = str(e).lower()
-            if "rate limit" in msg or "429" in msg:
-                # small backoff and retry once
-                delay = 10
-                print(f"Rate limit-like error detected from HF/provider. Retrying in {delay} seconds...")
-                time.sleep(delay)
-                return LLMClient._send_gemini_message(model,
-                                                      message,
-                                                      tools=tools,
-                                                      stream=stream,
-                                                      config=config,
-                                                      **generation_kwargs)
-
-            # Non-rate-limit: raise with clearer information
-            raise RuntimeError(f"Hugging Face pipeline error: {e}") from e
-
+        # call pipeline (note: pass return_full_text only if you want the full concatenation)
+        out = self.pipeline(contents, **gen_kwargs)
         # pipeline returns a list of dicts with "generated_text"
         text = out[0].get("generated_text", "")
         return text
@@ -321,7 +262,9 @@ class LLMClient:
             # For HF, store token and re-create pipeline if desired.
             self._model.hf_token = password
             # NOTE: pipeline re-creation might be necessary depending on auth scope.
-            # self._model = HFModelWrapper(self._model.model_name, system_instruction=self._model.system_instruction, hf_token=password, device=self._model.device)
+            # self._model = HFModelWrapper(self._model.model_name,
+            #                              system_instruction=self._model.system_instruction,
+            #                              hf_token=password)
             self._password = password
 
     def generate_content(self,
@@ -457,5 +400,5 @@ class LLMClient:
                                                       stream=stream,
                                                       config=config,
                                                       **generation_kwargs)
-            # If it’s not a rate-limit, raise immediately with a clearer message
-            raise RuntimeError(f"Hugging Face pipeline error: {e}") from e
+            print(f"Error during chat message sending: {e}")
+            raise

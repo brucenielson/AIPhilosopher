@@ -1,10 +1,18 @@
-import time
+# *** top of file, before importing torch or transformers ***
 import os
+
+# Disable TorchDynamo compile attempts entirely
 os.environ["TORCH_COMPILE_DISABLE"] = "1"
+
+# If you still see verbose output, also clear TORCHDYNAMO_VERBOSE:
+os.environ["TORCHDYNAMO_VERBOSE"] = "0"
+
+import time
 import gradio as gr
 from typing import Optional
 from rag_chat import RagChat
-from llm_client import LLMClient, initialize_gemini_model
+from llm_client import LLMClient
+os.environ["TORCH_COMPILE_DISABLE"] = "1"
 
 
 class RAGChatInterface:
