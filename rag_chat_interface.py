@@ -2,7 +2,6 @@
 import os
 # Disable TorchDynamo compile attempts entirely
 os.environ["TORCH_COMPILE_DISABLE"] = "1"
-
 # If you still see verbose output, also clear TORCHDYNAMO_VERBOSE:
 os.environ["TORCHDYNAMO_VERBOSE"] = "0"
 
@@ -11,6 +10,7 @@ import gradio as gr
 from typing import Optional
 from rag_chat import RagChat
 from llm_client import LLMClient
+
 
 class RAGChatInterface:
     def __init__(
