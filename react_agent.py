@@ -8,7 +8,7 @@ from google.generativeai.types import Tool, FunctionDeclaration
 # noinspection PyPackageRequirements
 from google.generativeai.types.generation_types import GenerateContentResponse
 from typing import List, Dict, Any, Tuple
-from doc_retrieval_pipeline import DocRetrievalPipeline
+from haystack_pipelines.doc_retrieval_pipeline import DocRetrievalPipeline
 # noinspection PyPackageRequirements
 from haystack import Document
 from models.generator_model import get_secret

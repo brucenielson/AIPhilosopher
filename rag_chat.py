@@ -4,8 +4,8 @@ from google.generativeai.types.generation_types import GenerateContentResponse
 # noinspection PyPackageRequirements
 from google.generativeai.types import generation_types
 # noinspection PyPackageRequirements
-from doc_retrieval_pipeline import DocRetrievalPipeline, SearchMode
-from document_processor import DocumentProcessor
+from haystack_pipelines.doc_retrieval_pipeline import DocRetrievalPipeline, SearchMode
+from haystack_pipelines.document_processor import DocumentProcessor
 # noinspection PyPackageRequirements
 from haystack import Document
 from typing import Optional, List, Dict, Any, Iterator, Union, Tuple

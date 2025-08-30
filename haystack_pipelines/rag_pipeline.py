@@ -417,7 +417,7 @@ class RagPipeline:
 
 
 def main() -> None:
-    file_path: str = "documents"
+    file_path: str = "../documents"
     doc_store_type: DocumentStoreType = DocumentStoreType.Pgvector
     password: str = ""
     user_name: str = ""
