@@ -79,15 +79,15 @@ class HFModelWrapper:
 
         self.model = AutoModelForCausalLM.from_pretrained(
             model_name,
-            token=hf_token
-        ).cuda(device=device)
+            token=hf_token,
+            torch_dtype=torch.bfloat16 if device < 0 else torch.float32
+        ).to(device="cuda" if device >= 0 else "cpu")
 
         # Now build pipeline with the loaded model + tokenizer
         self.pipeline = pipeline(
             "text-generation",
             model=self.model,
             tokenizer=self.tokenizer,
-            device=device
         )
 
     def generate_content(self, contents: str, generation_config: GenerationConfig = None, tools=None, stream=False):
