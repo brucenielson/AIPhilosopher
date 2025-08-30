@@ -18,7 +18,7 @@ from haystack.components.embedders import SentenceTransformersDocumentEmbedder
 from neo4j_haystack import Neo4jEmbeddingRetriever
 from sentence_transformers import SentenceTransformer
 import re
-from html_parser import HTMLParser
+from components.html_parser import HTMLParser
 # noinspection PyPackageRequirements
 from haystack.dataclasses import ByteStream
 from pathlib import Path
@@ -30,7 +30,7 @@ import sounddevice as sd
 import numpy as np
 import torch
 import requests
-import generator_model as gen
+from models import generator_model as gen
 from docling.document_converter import DocumentConverter, ConversionResult
 from docling_core.types import DoclingDocument
 from docling_parser import DoclingParser

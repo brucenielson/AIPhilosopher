@@ -20,12 +20,10 @@ from neo4j_haystack import Neo4jDocumentStore
 # Other imports
 from typing import Optional, Dict, Any, Union, List, Tuple
 from pathlib import Path
-import generator_model as gen
+from models import generator_model as gen
 from enum import Enum
-from document_processor import DocumentStoreType
-from custom_haystack_components import (DocumentCollector, RetrieverWrapper, print_documents,
-                                        QueryComponent, print_debug_results, Reranker
-                                        )
+from components.custom_haystack_components import (DocumentCollector, RetrieverWrapper, QueryComponent, print_debug_results, Reranker
+                                                   )
 
 
 class SearchMode(Enum):

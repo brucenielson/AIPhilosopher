@@ -10,12 +10,12 @@ from document_processor import DocumentProcessor
 from haystack import Document
 from typing import Optional, List, Dict, Any, Iterator, Union, Tuple
 from react_agent import format_document, ReActAgent
-from llm_client import LLMClient
+from models.llm_model import LLMModel
 
 
 class RagChat:
     def __init__(self,
-                 model: LLMClient,
+                 model: LLMModel,
                  postgres_password: str,
                  *,
                  postgres_user_name: str = "postgres",
@@ -30,7 +30,7 @@ class RagChat:
                  retriever_top_k_docs: int = 100) -> None:
 
         # Initialize Gemini Chat with a system instruction to act like philosopher Karl Popper.
-        self._model: LLMClient = model
+        self._model: LLMModel = model
         self._llm_top_k: int = llm_top_k
         self._retriever_top_k_docs: int = retriever_top_k_docs
         self._system_instruction: Optional[str] = system_instruction

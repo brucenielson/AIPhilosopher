@@ -10,7 +10,6 @@ from haystack.components.builders import PromptBuilder
 # noinspection PyPackageRequirements
 from haystack.components.generators import HuggingFaceLocalGenerator
 # noinspection PyPackageRequirements
-from haystack.components.rankers import TransformersSimilarityRanker
 # noinspection PyPackageRequirements
 from haystack.dataclasses import StreamingChunk
 from haystack_integrations.components.generators.google_ai import GoogleAIGeminiGenerator
@@ -25,14 +24,14 @@ from neo4j_haystack import Neo4jDocumentStore, Neo4jEmbeddingRetriever
 # Other imports
 from typing import Optional, Dict, Any, Union
 from pathlib import Path
-import generator_model as gen
+from models import generator_model as gen
 from enum import Enum
 import textwrap
 from document_processor import DocumentStoreType
-from custom_haystack_components import (MergeResults, DocumentCollector, RetrieverWrapper, print_documents,
-                                        QueryComponent, print_debug_results, DocumentStreamer, TextToSpeechLocal,
-                                        Reranker
-                                        )
+from components.custom_haystack_components import (MergeResults, DocumentCollector, RetrieverWrapper, print_documents,
+                                                   QueryComponent, print_debug_results, DocumentStreamer, TextToSpeechLocal,
+                                                   Reranker
+                                                   )
 
 
 class SearchMode(Enum):

@@ -4,13 +4,13 @@ import time
 import gradio as gr
 from typing import Optional
 from rag_chat import RagChat
-from llm_client import LLMClient
+from models.llm_model import LLMModel
 
 
 class RAGChatInterface:
     def __init__(
         self,
-        model: LLMClient,
+        model: LLMModel,
         title: str = "RAG Chat",
         system_instructions: str = "You are a helpful assistant.",
         llm_top_k: int = 5,
@@ -18,7 +18,7 @@ class RAGChatInterface:
     ):
         self._title: str = title
         self._system_instructions: str = system_instructions
-        self._model: LLMClient = model
+        self._model: LLMModel = model
         self._rag_chat: Optional[RagChat] = None
         self._config_data: dict = {}
         self._llm_top_k: int = llm_top_k
@@ -383,9 +383,9 @@ if __name__ == "__main__":
         "You are philosopher Karl Popper. Answer questions with philosophical insights, and use "
         "the provided quotes along with their metadata as reference."
     )
-    # llm_client = LLMClient(model_or_name="gemini-2.0-flash", "google/gemma-2-2b-it", "google/gemma-3-270m"
+    # llm_client = LLMModel(model_or_name="gemini-2.0-flash", "google/gemma-2-2b-it", "google/gemma-3-270m"
     # system_instruction=sys_instruction)
-    llm_client = LLMClient("google/gemma-3-270m", system_instruction="You are concise.")
+    llm_client = LLMModel("google/gemma-3-270m", system_instruction="You are concise.")
     app = RAGChatInterface(
         model=llm_client,
         title="Karl Popper Chatbot",

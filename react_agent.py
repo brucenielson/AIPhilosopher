@@ -11,8 +11,8 @@ from typing import List, Dict, Any, Tuple
 from doc_retrieval_pipeline import DocRetrievalPipeline
 # noinspection PyPackageRequirements
 from haystack import Document
-from generator_model import get_secret
-from llm_client import LLMClient, initialize_gemini_model
+from models.generator_model import get_secret
+from models.llm_model import LLMModel, initialize_gemini_model
 
 
 def format_document(doc, include_raw_info: bool = False) -> str:
@@ -119,21 +119,21 @@ answer_declaration: Dict[str, Any] = {
 
 class ReActAgent:
     # Class-level attribute annotations
-    model: LLMClient
+    model: LLMModel
     tools: List[Tool]
     _wikipedia_search_history: List[str]
     _wikipedia_search_urls: List[str]
     should_continue_prompting: bool
 
     def __init__(self,
-                 model: LLMClient,
+                 model: LLMModel,
                  doc_retriever: DocRetrievalPipeline,
                  *,
                  password: str = None) -> None:
         if password:
             genai.configure(api_key=password)
 
-        self._model: LLMClient = model
+        self._model: LLMModel = model
         self._doc_retriever: DocRetrievalPipeline = doc_retriever
 
         # Define the tools with our function declarations
@@ -423,7 +423,7 @@ if __name__ == "__main__":
 
     # Instantiate the ReActFunctionCaller session using the defined model.
     gemini_model = initialize_gemini_model("gemini-2.0-flash")
-    llm_client = LLMClient(model_or_name=gemini_model, password=gemini_password)
+    llm_client = LLMModel(model_or_name=gemini_model, password=gemini_password)
     gemini_react: ReActAgent = ReActAgent(llm_client, doc_retriever=document_retriever)
 
     # Start the conversation using the provided question and generation parameters.
