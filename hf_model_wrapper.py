@@ -125,7 +125,7 @@ class HFModelWrapper:
             gen_kwargs.setdefault("max_new_tokens", 256)
 
         # call pipeline (note: pass return_full_text only if you want the full concatenation)
-        out = self.pipeline(contents, **gen_kwargs)
+        out = self.pipeline(contents, return_full_text=False, **gen_kwargs)
         # pipeline returns a list of dicts with "generated_text"
         text = out[0].get("generated_text", "")
         return text
