@@ -55,6 +55,11 @@ class HFModelWrapper:
         if torch.cuda.is_available():
             device = 0  # CUDA device index
             print("Using device: CUDA (GPU 0)")
+            major, minor = torch.cuda.get_device_capability()
+            if major < 7:
+                print(f"GPU capability {major}.{minor} too old for Triton, disabling torch.compile.")
+                torch._dynamo.config.disable = True
+                torch._dynamo.config.suppress_errors = True
         else:
             device = -1  # CPU
             print("Using device: CPU")
@@ -75,7 +80,7 @@ class HFModelWrapper:
         self.model = AutoModelForCausalLM.from_pretrained(
             model_name,
             token=hf_token
-        )
+        ).cuda(device=device)
 
         # Now build pipeline with the loaded model + tokenizer
         self.pipeline = pipeline(

@@ -1,10 +1,5 @@
 # *** top of file, before importing torch or transformers ***
 import os
-# Disable TorchDynamo compile attempts entirely
-os.environ["TORCH_COMPILE_DISABLE"] = "1"
-# If you still see verbose output, also clear TORCHDYNAMO_VERBOSE:
-os.environ["TORCHDYNAMO_VERBOSE"] = "0"
-
 import time
 import gradio as gr
 from typing import Optional
