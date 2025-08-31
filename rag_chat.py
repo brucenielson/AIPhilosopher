@@ -11,6 +11,7 @@ from haystack import Document
 from typing import Optional, List, Dict, Any, Iterator, Union, Tuple
 from react_agent import format_document, ReActAgent
 from models.llm_model import LLMModel
+from models.gemini_utils import chat_to_gemini_format
 
 
 class RagChat:
@@ -65,7 +66,7 @@ class RagChat:
         self._load_pipeline: Optional[DocumentProcessor] = None
 
     def ask_llm_question(self, prompt: str,
-                         chat_history: Optional[List[Dict[str, Any]]] = None,
+                         chat_history: Optional[List[List[str]]] = None,
                          stream: bool = False) -> Union[generation_types.GenerateContentResponse, str]:
         if chat_history is None:
             chat_history = []
@@ -113,7 +114,7 @@ class RagChat:
         gemini_react: ReActAgent = ReActAgent(self._model, doc_retriever=self._doc_pipeline)
         return gemini_react(users_question, temperature=0.2)
 
-    def ask_llm_for_improved_query(self, message: str, chat_history: List[Dict[str, Any]]) -> str:
+    def ask_llm_for_improved_query(self, message: str, chat_history: List[List[str]]) -> str:
         prompt = (
             f"Given the query: '{message}' and the current chat history, the database of relevant quotes found none "
             f"that were a strong match. This might be due to poor wording on the user's part. "
@@ -190,7 +191,7 @@ class RagChat:
                 chat_history = chat_history[:-1]
 
         # Put the chat_history into the correct format for Gemini
-        gemini_chat_history: List[Dict[str, Any]] = self.transform_history(chat_history)
+        # gemini_chat_history: List[Dict[str, Any]] = chat_to_gemini_format(chat_history)
 
         retrieved_docs: List[Document]
         all_docs: List[Document]
@@ -203,7 +204,7 @@ class RagChat:
 
         if max_score is not None and max_score < 0.50:
             # If we don't have any good quotes, ask the LLM if it wants to do its own search
-            improved_query: str = self.ask_llm_for_improved_query(message, gemini_chat_history)
+            improved_query: str = self.ask_llm_for_improved_query(message, chat_history)
 
             new_retrieved_docs: List[Document]
             temp_all_docs: List[Document]
@@ -282,7 +283,7 @@ class RagChat:
 
         # We start a new chat session each time so that we can control the chat history and remove all the rag docs
         # Send the modified query to Gemini.
-        chat_response = self.ask_llm_question(modified_query, chat_history=gemini_chat_history, stream=True)
+        chat_response = self.ask_llm_question(modified_query, chat_history=chat_history, stream=True)
         answer_text = ""
 
         if not isinstance(chat_response, GenerateContentResponse):

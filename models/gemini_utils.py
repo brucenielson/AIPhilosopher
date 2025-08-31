@@ -1,6 +1,6 @@
 # noinspection PyPackageRequirements
 import google.generativeai as genai
-from typing import Optional
+from typing import Optional, List, Dict, Any
 
 # List of valid Gemini model_or_name names.
 VALID_GEMINI_MODELS = [
@@ -11,6 +11,14 @@ VALID_GEMINI_MODELS = [
     "gemma-3-8b-it-v1",
     "gemma-3-8b-it-v2"
 ]
+
+
+def chat_to_gemini_format(history: List[List[str]]) -> List[Dict[str, Any]]:
+    new_history = []
+    for chat_response in history:
+        new_history.append({"parts": [{"text": chat_response[0]}], "role": "user"})
+        new_history.append({"parts": [{"text": chat_response[1]}], "role": "model"})
+    return new_history
 
 
 def initialize_gemini_model(model_name: str = "gemini-2.0-flash",

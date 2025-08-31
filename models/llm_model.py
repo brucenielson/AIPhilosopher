@@ -10,7 +10,7 @@ from typing import Any, List, Union, Optional, Dict
 import time
 import re
 from models.hf_model_wrapper import HFModelWrapper
-from models.gemini_utils import initialize_gemini_model, VALID_GEMINI_MODELS
+from models.gemini_utils import initialize_gemini_model, VALID_GEMINI_MODELS, chat_to_gemini_format
 
 
 class LLMModel:
@@ -94,7 +94,7 @@ class LLMModel:
 
     def send_chat_message(self,
                           message: str,
-                          chat_history: Optional[List[Dict[str, Any]]] = None,
+                          chat_history: Optional[List[List[str]]] = None,
                           chat_session_reset: bool = False,
                           stream: bool = False,
                           tools: List[Tool] = None,
@@ -102,10 +102,17 @@ class LLMModel:
                           **generation_kwargs: Any
                           ) -> Union[GenerateContentResponse, str]:
 
-        if self._chat_session is None or chat_session_reset:
+        formatted_chat_history: Optional[Union[List[Dict[str, Any]], List[List[str]]]] = None
+        if chat_history is not None:
+            if isinstance(self._model, genai.GenerativeModel):
+                formatted_chat_history: List[Dict[str, Any]] = chat_to_gemini_format(chat_history)
+            else:
+                formatted_chat_history = chat_history
+
+        if self._chat_session is None or chat_session_reset or chat_history is not None:
             # if the model has start_chat, call it; otherwise, for non-chat models we emulate one
             if hasattr(self._model, "start_chat") and callable(getattr(self._model, "start_chat")):
-                self._chat_session = self._model.start_chat(history=chat_history)
+                self._chat_session = self._model.start_chat(history=formatted_chat_history)
             else:
                 # fallback: create a dummy HFChatSession-like wrapper if possible
                 raise RuntimeError("Underlying model does not support chat sessions.")

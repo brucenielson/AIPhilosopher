@@ -130,23 +130,23 @@ class HFModelWrapper:
         text = out[0].get("generated_text", "")
         return text
 
-    def start_chat(self, history: Optional[List[Dict[str, Any]]] = None):
+    def start_chat(self, history: Optional[List[List[str]]] = None):
         return HFChatSession(self, history or [])
 
 
 class HFChatSession:
     """Keep a simple chat history and format a prompt for causal LMs."""
-    def __init__(self, wrapper: HFModelWrapper, history: List[Dict[str, Any]]):
-        self.wrapper = wrapper
-        self.history = history  # list of dicts with 'role' and 'content'
+    def __init__(self, wrapper: HFModelWrapper, history: List[List[str]]):
+        self.wrapper: HFModelWrapper = wrapper
+        self.history: List[List[str]] = history  # list of dicts with 'role' and 'content'
 
     def _build_prompt(self, message: str) -> str:
         parts = []
         if self.wrapper.system_instruction:
             parts.append(f"[System]: {self.wrapper.system_instruction}")
         for item in self.history:
-            role = item.get("role", "user").capitalize()
-            parts.append(f"[{role}]: {item.get('content','')}")
+            parts.append(f"[User]: {item[0]}")
+            parts.append(f"[Assistant]: {item[1]}")
         parts.append(f"[User]: {message}")
         parts.append("[Assistant]:")
         # join with newlines
@@ -156,6 +156,5 @@ class HFChatSession:
         prompt = self._build_prompt(message)
         resp = self.wrapper.generate_content(prompt, generation_config=generation_config, tools=tools, stream=stream)
         # update history with user + assistant
-        self.history.append({"role": "user", "content": message})
-        self.history.append({"role": "assistant", "content": resp})
+        self.history.append([message, resp])
         return resp
