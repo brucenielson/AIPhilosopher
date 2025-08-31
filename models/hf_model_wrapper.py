@@ -41,6 +41,7 @@ class HFModelWrapper:
         self._device = device
         self._tokenizer: Union[PreTrainedTokenizer, PreTrainedTokenizerFast]
         self._model: PreTrainedModel
+        self._model_max_length: int = 1024  # will be updated after loading model
 
         # Pick dtype
         torch_dtype: Optional[torch.dtype] = None
