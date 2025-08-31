@@ -43,14 +43,14 @@ class HFModelWrapper:
         self._model: PreTrainedModel
         self._model_max_length: int = 1024  # will be updated after loading model
 
-        # Pick dtype
-        torch_dtype: Optional[torch.dtype] = None
-        if dtype == "auto":
-            torch_dtype = torch.float16 if torch.cuda.is_available() else None
-        elif isinstance(dtype, str):
-            torch_dtype = getattr(torch, dtype)
-        else:
-            torch_dtype = dtype
+        # Pick dtype (always 32 bit for now)
+        torch_dtype: Optional[torch.dtype] = torch.float32
+        # if dtype == "auto":
+        #     torch_dtype = torch.float16 if torch.cuda.is_available() else None
+        # elif isinstance(dtype, str):
+        #     torch_dtype = getattr(torch, dtype)
+        # else:
+        #     torch_dtype = dtype
 
         # Check for GPU availability
         if self._device == "auto" and torch.cuda.is_available():
@@ -107,7 +107,7 @@ class HFModelWrapper:
                          tools=None,
                          stream=False) -> Union[str, Generator[str, None, None]]:
         gen_kwargs: dict = generation_config.to_dict() if generation_config else {}
-        gen_kwargs.update(dict(do_sample=False, num_beams=1))
+        gen_kwargs.update(dict(do_sample=True, num_beams=1))
 
         # Respect model’s max length (don’t hardcode)
         self._model_max_length = getattr(
@@ -134,38 +134,52 @@ class HFModelWrapper:
             return text[len(prompt):]  # strip input prompt from start of output
         else:
             # --- Streaming branch ---
-            gen_kwargs.setdefault("max_new_tokens", 256)  # <-- very important!
-            streamer: TextIteratorStreamer = TextIteratorStreamer(
-                self._tokenizer,
-                skip_special_tokens=True,
+            # Reuse gen_kwargs from above instead of resetting it
+            gen_kwargs.setdefault("max_new_tokens", 256)
+
+            # Decode canonical prompt for stripping later
+            canonical_prompt = self._tokenizer.decode(
+                inputs["input_ids"][0], skip_special_tokens=True
             )
 
-            thread: threading.Thread = threading.Thread(
+            # Create streamer
+            streamer = TextIteratorStreamer(self._tokenizer, skip_special_tokens=True)
+
+            # Launch generation in background thread
+            thread = threading.Thread(
                 target=self._model.generate,
-                kwargs={**inputs, "streamer": streamer, **gen_kwargs},
+                kwargs=dict(
+                    input_ids=inputs["input_ids"].to(self._model.device),
+                    attention_mask=inputs.get("attention_mask", None),
+                    streamer=streamer,
+                    **gen_kwargs,
+                ),
             )
             thread.start()
 
-            # Wrap streamer into a generator that skips the prompt
             def stream_generator():
-                accumulated: str = ""
-                start_yield: bool = False
-                chunk: str
-                for chunk in streamer:
-                    if chunk is None or chunk == "":
-                        continue
-                    accumulated += chunk
-                    if start_yield:
-                        yield chunk
-                    elif not accumulated.startswith(prompt):
-                        # Still processing the prompt, so don't return anything yet
-                        continue
-                    else:
-                        start_yield: bool = True
-                        remaining: str = accumulated[len(prompt):]
-                        yield remaining
+                buffer = ""
+                seen_prompt = False
 
-        return stream_generator()
+                for chunk in streamer:
+                    if not chunk:
+                        continue
+
+                    if not seen_prompt:
+                        buffer += chunk
+                        idx = buffer.find(canonical_prompt)
+                        if idx != -1:
+                            start = idx + len(canonical_prompt)
+                            remaining = buffer[start:]
+                            seen_prompt = True
+                            buffer = ""
+                            yield remaining
+                    else:
+                        yield chunk
+
+                thread.join()  # ensure generation finished
+
+            return stream_generator()
 
         # def stream_generator():
         #     generated_tokens = 0
