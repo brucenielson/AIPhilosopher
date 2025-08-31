@@ -11,7 +11,6 @@ from haystack import Document
 from typing import Optional, List, Dict, Any, Iterator, Union, Tuple, Generator
 from react_agent import format_document, ReActAgent
 from models.llm_model import LLMModel
-from models.gemini_utils import chat_to_gemini_format
 
 
 class RagChat:
@@ -318,11 +317,3 @@ class RagChat:
                 # So skip over those.
                 continue
 
-    # Taken from https://medium.com/latinxinai/simple-chatbot-gradio-google-gemini-api-4ce02fbaf09f
-    @staticmethod
-    def transform_history(history) -> List[Dict[str, Any]]:
-        new_history = []
-        for chat_response in history:
-            new_history.append({"parts": [{"text": chat_response[0]}], "role": "user"})
-            new_history.append({"parts": [{"text": chat_response[1]}], "role": "model"})
-        return new_history

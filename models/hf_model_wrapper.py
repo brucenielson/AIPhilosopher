@@ -149,10 +149,14 @@ class HFModelWrapper:
             thread = threading.Thread(
                 target=self._model.generate,
                 kwargs=dict(
-                    input_ids=inputs["input_ids"].to(self._model.device),
-                    attention_mask=inputs.get("attention_mask", None),
+                    **inputs,
                     streamer=streamer,
-                    **gen_kwargs,
+                    max_new_tokens=100,
+                    do_sample=True,
+                    temperature=0.8,
+                    top_p=0.9,
+                    top_k=50,
+                    repetition_penalty=1.2,
                 ),
             )
             thread.start()

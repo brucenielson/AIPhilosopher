@@ -13,6 +13,7 @@ VALID_GEMINI_MODELS = [
 ]
 
 
+# Taken from https://medium.com/latinxinai/simple-chatbot-gradio-google-gemini-api-4ce02fbaf09f
 def chat_to_gemini_format(history: List[List[str]]) -> List[Dict[str, Any]]:
     new_history = []
     for chat_response in history:
