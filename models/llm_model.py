@@ -11,6 +11,7 @@ import time
 import re
 from models.hf_model_wrapper import HFModelWrapper
 from models.gemini_utils import initialize_gemini_model, VALID_GEMINI_MODELS, chat_to_gemini_format
+from types import GeneratorType
 
 
 class LLMModel:
@@ -77,20 +78,42 @@ class LLMModel:
             #                              hf_token=password)
             self._password = password
 
+    @staticmethod
+    def normalize_response(response):
+        """Wraps Hugging Face generator and Gemini response into a unified generator of text chunks."""
+        if isinstance(response, str):
+            # Non-streaming response from HF or Gemini
+            yield response
+            return
+
+        if isinstance(response, GeneratorType):
+            # Hugging Face: already a generator of strings
+            yield from response
+
+        elif isinstance(response, GenerateContentResponse):
+            # Gemini: stream across candidates/parts
+            for candidate in response.candidates:
+                for part in candidate.content.parts:
+                    if hasattr(part, "text") and part.text:
+                        yield part.text
+        else:
+            raise TypeError(f"Unsupported response type: {type(response)}")
+
     def generate_content(self,
                          message: str,
                          stream: bool = False,
                          tools: List[Tool] = None,
                          config: GenerationConfig = None,
                          **generation_kwargs: Any
-                         ) -> str:
+                         ) -> Union[GenerateContentResponse,GeneratorType, str]:
 
-        return LLMModel._send_message(self._model,
-                                      message,
-                                      tools=tools if tools is not None else self._tools,
-                                      stream=stream,
-                                      config=config if config is not None else self._config,
-                                      **generation_kwargs)
+        response = LLMModel._send_message(self._model,
+                                          message,
+                                          tools=tools if tools is not None else self._tools,
+                                          stream=stream,
+                                          config=config if config is not None else self._config,
+                                          **generation_kwargs)
+        return response
 
     def send_chat_message(self,
                           message: str,
@@ -100,7 +123,7 @@ class LLMModel:
                           tools: List[Tool] = None,
                           config: GenerationConfig = None,
                           **generation_kwargs: Any
-                          ) -> Union[GenerateContentResponse, str]:
+                          ) -> Union[GenerateContentResponse, GeneratorType, str]:
 
         formatted_chat_history: Optional[Union[List[Dict[str, Any]], List[List[str]]]] = None
         if chat_history is not None:
@@ -117,12 +140,14 @@ class LLMModel:
                 # fallback: create a dummy HFChatSession-like wrapper if possible
                 raise RuntimeError("Underlying model does not support chat sessions.")
 
-        return LLMModel._send_message(self._chat_session,
-                                      message,
-                                      tools=tools if tools is not None else self._tools,
-                                      stream=stream,
-                                      config=config if config is not None else self._config,
-                                      **generation_kwargs)
+        response = LLMModel._send_message(self._chat_session,
+                                          message,
+                                          tools=tools if tools is not None else self._tools,
+                                          stream=stream,
+                                          config=config if config is not None else self._config,
+                                          **generation_kwargs)
+
+        return response
 
     def reset_chat(self):
         self._chat_session = None
@@ -167,7 +192,7 @@ class LLMModel:
                       tools: List[Tool] = None,
                       stream: bool = False,
                       config: GenerationConfig = None,
-                      **generation_kwargs: Any) -> Union[GenerateContentResponse, str]:
+                      **generation_kwargs: Any) -> Union[GenerateContentResponse, GeneratorType, str]:
 
         if config is None and generation_kwargs:
             config = GenerationConfig(**generation_kwargs)
@@ -175,10 +200,13 @@ class LLMModel:
         try:
             # Duck-typed chat detection (works for Google ChatSession and HFChatSession)
             if hasattr(model, "send_message") and callable(getattr(model, "send_message")):
-                return model.send_message(message,
-                                          generation_config=config,
-                                          tools=tools,
-                                          stream=stream)
+                response = model.send_message(message,
+                                              generation_config=config,
+                                              tools=tools,
+                                              stream=stream)
+                # normalize_response = LLMModel.normalize_response(response)
+                # full_text = "".join(normalize_response)  # consume generator
+                return response
             # else try generate_content for model wrappers (Gemini or HFModelWrapper)
             elif hasattr(model, "generate_content") and callable(getattr(model, "generate_content")):
                 response = model.generate_content(

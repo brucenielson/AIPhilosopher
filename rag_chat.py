@@ -8,7 +8,7 @@ from haystack_pipelines.doc_retrieval_pipeline import DocRetrievalPipeline, Sear
 from haystack_pipelines.document_processor import DocumentProcessor
 # noinspection PyPackageRequirements
 from haystack import Document
-from typing import Optional, List, Dict, Any, Iterator, Union, Tuple
+from typing import Optional, List, Dict, Any, Iterator, Union, Tuple, Generator
 from react_agent import format_document, ReActAgent
 from models.llm_model import LLMModel
 from models.gemini_utils import chat_to_gemini_format
@@ -67,7 +67,7 @@ class RagChat:
 
     def ask_llm_question(self, prompt: str,
                          chat_history: Optional[List[List[str]]] = None,
-                         stream: bool = False) -> Union[generation_types.GenerateContentResponse, str]:
+                         stream: bool = False) -> Union[generation_types.GenerateContentResponse, Generator[str, None, None], str]:
         if chat_history is None:
             chat_history = []
         # Start a new chat session with no history for this check.
@@ -77,8 +77,20 @@ class RagChat:
                                                       chat_session_reset=True,
                                                       stream=stream)
         # If streaming is enabled, return the response object.
+        # HF returns a generator, Gemini returns a streaming object
         if stream:
-            return chat_response
+            if isinstance(chat_response, Generator):
+                # it's a generator -> yield strings
+                return chat_response
+                # for chunk in chat_response:
+                #     yield chunk  # <-- Gradio sees each chunk as it arrives
+
+            elif isinstance(chat_response, GenerateContentResponse):
+                # it's Gemini streaming (already iterable)
+                return chat_response
+            else:
+                raise ValueError("Streaming enabled but response is not a generator or GenerateContentResponse")
+
         # If streaming is not enabled, return the full response text.
         else:
             return chat_response.text.strip()
@@ -286,7 +298,7 @@ class RagChat:
         chat_response = self.ask_llm_question(modified_query, chat_history=chat_history, stream=True)
         answer_text = ""
 
-        if not isinstance(chat_response, GenerateContentResponse):
+        if not (isinstance(chat_response, GenerateContentResponse) or isinstance(chat_response, Generator)):
             # If the response is not a GenerateContentResponse, then we are not streaming.
             # So just return the answer text.
             yield chat_history + [(message, chat_response)], retrieved_quotes, all_quotes, research_quotes
@@ -297,6 +309,11 @@ class RagChat:
             try:
                 if hasattr(chunk, 'text'):
                     answer_text += chunk.text
+                    yield chat_history + [(message, answer_text)], retrieved_quotes, all_quotes, research_quotes
+                elif isinstance(chunk, str):
+                    if chunk == "":
+                        continue
+                    answer_text += chunk
                     yield chat_history + [(message, answer_text)], retrieved_quotes, all_quotes, research_quotes
             except ValueError:
                 # Gemma seems to have some bad responses that cause a ValueError when trying to access
