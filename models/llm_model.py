@@ -105,7 +105,7 @@ class LLMModel:
         formatted_chat_history: Optional[Union[List[Dict[str, Any]], List[List[str]]]] = None
         if chat_history is not None:
             if isinstance(self._model, genai.GenerativeModel):
-                formatted_chat_history: List[Dict[str, Any]] = chat_to_gemini_format(chat_history)
+                formatted_chat_history = chat_to_gemini_format(chat_history)
             else:
                 formatted_chat_history = chat_history
 
