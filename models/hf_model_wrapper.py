@@ -92,6 +92,14 @@ class HFModelWrapper:
         #     use_fast=True,
         # )
 
+    @property
+    def system_instruction(self) -> Optional[str]:
+        return self._system_instruction
+
+    @system_instruction.setter
+    def system_instruction(self, value: Optional[str]):
+        self._system_instruction = value
+
     def generate_content(self,
                          prompt: str,
                          generation_config: GenerationConfig = None,
