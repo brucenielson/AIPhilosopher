@@ -131,23 +131,40 @@ class HFModelWrapper:
             outputs: torch.LongTensor = self._model.generate(**inputs, **gen_kwargs)
             text: str = self._tokenizer.decode(outputs[0], skip_special_tokens=True)
             return text[len(prompt):]  # strip input prompt from start of output
+        else:
+            # --- Streaming branch ---
+            gen_kwargs.setdefault("max_new_tokens", 256)  # <-- very important!
+            streamer: TextIteratorStreamer = TextIteratorStreamer(
+                self._tokenizer,
+                skip_special_tokens=True,
+            )
 
-        # --- Streaming branch ---
-        streamer: TextIteratorStreamer = TextIteratorStreamer(
-            self._tokenizer,
-            skip_special_tokens=True,
-        )
+            thread: threading.Thread = threading.Thread(
+                target=self._model.generate,
+                kwargs={**inputs, "streamer": streamer, **gen_kwargs},
+            )
+            thread.start()
 
-        thread: threading.Thread = threading.Thread(
-            target=self._model.generate,
-            kwargs={**inputs, "streamer": streamer, **gen_kwargs},
-        )
-        thread.start()
+            # Wrap streamer into a generator that skips the prompt
+            def stream_generator():
+                accumulated: str = ""
+                start_yield: bool = False
+                chunk: str
+                for chunk in streamer:
+                    if chunk is None or chunk == "":
+                        continue
+                    accumulated += chunk
+                    if start_yield:
+                        yield chunk
+                    elif not accumulated.startswith(prompt):
+                        # Still processing the prompt, so don't return anything yet
+                        continue
+                    else:
+                        start_yield: bool = True
+                        remaining: str = accumulated[len(prompt):]
+                        yield remaining
 
-        # Wrap streamer into a generator
-        def stream_generator():
-            for new_text in streamer:
-                yield new_text
+        return stream_generator()
 
         # def stream_generator():
         #     generated_tokens = 0
@@ -168,7 +185,6 @@ class HFModelWrapper:
         #             else:
         #                 yield new_text
 
-        return stream_generator()
 
         # Ensure we avoid the transformers default max_length=20 issue:
         # - compute tokenized input length

@@ -311,8 +311,6 @@ class RagChat:
                     answer_text += chunk.text
                     yield chat_history + [(message, answer_text)], retrieved_quotes, all_quotes, research_quotes
                 elif isinstance(chunk, str):
-                    if chunk == "":
-                        continue
                     answer_text += chunk
                     yield chat_history + [(message, answer_text)], retrieved_quotes, all_quotes, research_quotes
             except ValueError:
