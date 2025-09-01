@@ -30,7 +30,7 @@ import sounddevice as sd
 import numpy as np
 import torch
 import requests
-from utilities.gen_utilities import get_secret
+from utilities.general_utils import get_secret
 from docling.document_converter import DocumentConverter, ConversionResult
 from docling_core.types import DoclingDocument
 from docling_parser import DoclingParser

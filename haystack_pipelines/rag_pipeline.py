@@ -25,7 +25,7 @@ from neo4j_haystack import Neo4jDocumentStore, Neo4jEmbeddingRetriever
 from typing import Optional, Dict, Any, Union
 from pathlib import Path
 from models import generator_model as gen
-from utilities.gen_utilities import get_secret
+from utilities.general_utils import get_secret
 from enum import Enum
 import textwrap
 from document_processor import DocumentStoreType

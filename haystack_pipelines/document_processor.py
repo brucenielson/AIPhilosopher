@@ -25,7 +25,7 @@ from neo4j_haystack import Neo4jDocumentStore
 from typing import List, Optional, Dict, Any, Union, Iterator
 from pathlib import Path
 from enum import Enum
-from utilities.gen_utilities import get_secret
+from utilities.general_utils import get_secret
 from doc_content_checker import skip_content
 from components.custom_haystack_components import (CustomDocumentSplitter, RemoveIllegalDocs, FinalDocCounter, DuplicateChecker,
                                                    EPubLoader, HTMLParserComponent, print_debug_results, EpubVsPdfSplitter,
