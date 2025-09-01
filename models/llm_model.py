@@ -1,3 +1,5 @@
+from copy import deepcopy
+
 # noinspection PyPackageRequirements
 import google.generativeai as genai
 # noinspection PyPackageRequirements
@@ -130,7 +132,7 @@ class LLMModel:
             if isinstance(self._model, genai.GenerativeModel):
                 formatted_chat_history = chat_to_gemini_format(chat_history)
             else:
-                formatted_chat_history = chat_history
+                formatted_chat_history = deepcopy(chat_history)
 
         if self._chat_session is None or chat_session_reset or chat_history is not None:
             # if the model has start_chat, call it; otherwise, for non-chat models we emulate one
