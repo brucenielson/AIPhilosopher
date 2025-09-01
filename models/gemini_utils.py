@@ -23,14 +23,7 @@ def get_gemini_models(secret_token: Optional[str] = None) -> List[str]:
     try:
         if secret_token:
             genai.configure(api_key=secret_token)
-        valid_models = []
-        for model in genai.list_models():
-            # Remove "model/" prefix if present
-            model_name = model.name
-            if model_name.startswith("models/"):
-                model_name = model.name[len("models/"):]
-            valid_models.append(model_name)
-        return valid_models
+        return [model.name.removeprefix("models/") for model in genai.list_models()]
     except DefaultCredentialsError:
         return VALID_GEMINI_MODELS
 
