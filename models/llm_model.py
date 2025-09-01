@@ -58,7 +58,7 @@ class LLMModel:
         self._tools: List[Tool] = tools if tools is not None else []
         self._config: Optional[GenerationConfig] = None
         # Handle login
-        self._password: Optional[str]
+        self._password: Optional[str] = None
         if secret_token:
             self.login(secret_token)
 
@@ -100,26 +100,26 @@ class LLMModel:
     def has_secret_token(self) -> bool:
         return self._password is not None and len(self._password) > 0
 
-    @staticmethod
-    def normalize_response(response):
-        """Wraps Hugging Face generator and Gemini response into a unified generator of text chunks."""
-        if isinstance(response, str):
-            # Non-streaming response from HF or Gemini
-            yield response
-            return
-
-        if isinstance(response, GeneratorType):
-            # Hugging Face: already a generator of strings
-            yield from response
-
-        elif isinstance(response, GenerateContentResponse):
-            # Gemini: stream across candidates/parts
-            for candidate in response.candidates:
-                for part in candidate.content.parts:
-                    if hasattr(part, "text") and part.text:
-                        yield part.text
-        else:
-            raise TypeError(f"Unsupported response type: {type(response)}")
+    # @staticmethod
+    # def normalize_response(response):
+    #     """Wraps Hugging Face generator and Gemini response into a unified generator of text chunks."""
+    #     if isinstance(response, str):
+    #         # Non-streaming response from HF or Gemini
+    #         yield response
+    #         return
+    #
+    #     if isinstance(response, GeneratorType):
+    #         # Hugging Face: already a generator of strings
+    #         yield from response
+    #
+    #     elif isinstance(response, GenerateContentResponse):
+    #         # Gemini: stream across candidates/parts
+    #         for candidate in response.candidates:
+    #             for part in candidate.content.parts:
+    #                 if hasattr(part, "text") and part.text:
+    #                     yield part.text
+    #     else:
+    #         raise TypeError(f"Unsupported response type: {type(response)}")
 
     def generate_content(self,
                          message: str,
@@ -127,7 +127,7 @@ class LLMModel:
                          tools: List[Tool] = None,
                          config: GenerationConfig = None,
                          **generation_kwargs: Any
-                         ) -> Union[GenerateContentResponse,GeneratorType, str]:
+                         ) -> Union[GenerateContentResponse, GeneratorType, str]:
 
         response = LLMModel._send_message(self._model,
                                           message,

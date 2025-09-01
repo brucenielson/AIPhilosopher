@@ -15,7 +15,7 @@ class RAGChatInterface:
         title: str = "RAG Chat",
         system_instructions: str = "You are a helpful assistant.",
         llm_top_k: int = 5,
-        retriever_top_k_docs=10,
+        retriever_top_k_docs=100,
     ):
         self._title: str = title
         self._system_instructions: str = system_instructions
@@ -387,7 +387,7 @@ if __name__ == "__main__":
     )
     # llm_client = LLMModel(model_or_name="gemini-2.0-flash", "google/gemma-2-2b-it", "google/gemma-3-270m"
     # system_instruction=sys_instruction)
-    # google_secret: str = get_secret(r'D:\Documents\Secrets\gemini_secret.txt')  # Put your path here # noqa: F841
+    google_secret: str = get_secret(r'D:\Documents\Secrets\gemini_secret.txt')  # Put your path here # noqa: F841
     llm_client = LLMModel("google/gemma-3-270m", system_instruction="You are concise.", secret_token=None)
     app = RAGChatInterface(
         model=llm_client,
