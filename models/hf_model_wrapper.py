@@ -1,8 +1,7 @@
 import torch
-from typing import Any, List, Optional, Dict, Union, Generator
+from typing import List, Optional, Union, Generator
 # noinspection PyPackageRequirements
 from google.generativeai.types.generation_types import GenerationConfig
-from transformers import pipeline, AutoTokenizer, AutoModelForCausalLM
 from transformers import (
     AutoTokenizer,
     AutoModelForCausalLM,
@@ -13,12 +12,48 @@ from transformers import (
     GenerationConfig,
 )
 import threading
+from models.gemini_utils import MinGeminiCompatible, GeminiChatSessionCompatible
 
 TRITON_REQUIRED_CAPABILITY = 7  # minimum GPU capability for triton backend
 
+DECODING_PRESETS = {
+    "balanced": dict(
+        do_sample=True,
+        temperature=0.8,
+        top_p=0.9,
+        repetition_penalty=1.1,
+        max_new_tokens=200,
+    ),
+    "creative": dict(
+        do_sample=True,
+        temperature=1.0,
+        top_p=0.95,
+        repetition_penalty=1.0,
+        max_new_tokens=300,
+    ),
+    "factual": dict(
+        do_sample=False,   # greedy decoding
+        max_new_tokens=200,
+    ),
+    "diverse": dict(
+        do_sample=True,
+        temperature=1.2,
+        top_p=0.95,
+        top_k=100,
+        repetition_penalty=1.15,
+        max_new_tokens=250,
+    ),
+    "short_answer": dict(
+        do_sample=True,
+        temperature=0.7,
+        top_p=0.85,
+        max_new_tokens=50,
+    ),
+}
+
 
 # ----- Hugging Face wrapper: provides a minimal compatible interface -----
-class HFModelWrapper:
+class HFModelWrapper(MinGeminiCompatible):
     """
     Minimal wrapper around an HF text-generation pipeline that exposes:
      - generate_content(contents=..., generation_config=..., tools=..., stream=...)
@@ -34,6 +69,7 @@ class HFModelWrapper:
             device: str = "auto",
             dtype: Union[str, torch.dtype] = "auto",
     ):
+        super().__init__(model_name, system_instruction)
         self._model_name = model_name
         self._system_instruction = system_instruction
         self._hf_token = hf_token
@@ -204,7 +240,6 @@ class HFModelWrapper:
         #             else:
         #                 yield new_text
 
-
         # Ensure we avoid the transformers default max_length=20 issue:
         # - compute tokenized input length
         # - if input_len + max_new_tokens > model_max_length, then truncate prompt (tail) and/or reduce max_new_tokens
@@ -246,17 +281,17 @@ class HFModelWrapper:
         return HFChatSession(self, history or [])
 
 
-class HFChatSession:
+class HFChatSession(GeminiChatSessionCompatible):
     """Keep a simple chat history and format a prompt for causal LMs."""
     def __init__(self, wrapper: HFModelWrapper, history: List[List[str]]):
-        self.wrapper: HFModelWrapper = wrapper
-        self.history: List[List[str]] = history  # list of dicts with 'role' and 'content'
+        super().__init__(history)
+        self._wrapper: HFModelWrapper = wrapper
 
     def _build_prompt(self, message: str) -> str:
         parts = []
-        if self.wrapper.system_instruction:
-            parts.append(f"[System]: {self.wrapper.system_instruction}")
-        for item in self.history:
+        if self._wrapper.system_instruction:
+            parts.append(f"[System]: {self._wrapper.system_instruction}")
+        for item in self._history:
             parts.append(f"[User]: {item[0]}")
             parts.append(f"[Assistant]: {item[1]}")
         parts.append(f"[User]: {message}")
@@ -266,11 +301,11 @@ class HFChatSession:
 
     def send_message(self, message: str, generation_config: GenerationConfig = None, tools=None, stream=False):
         prompt = self._build_prompt(message)
-        resp = self.wrapper.generate_content(prompt, generation_config=generation_config, tools=tools, stream=stream)
+        resp = self._wrapper.generate_content(prompt, generation_config=generation_config, tools=tools, stream=stream)
 
         if isinstance(resp, Generator):
             # Add a placeholder in history
-            self.history.append([message, ""])
+            self._history.append([message, ""])
 
             # Wrap the generator to update history incrementally
             def history_stream_wrapper(gen):
@@ -278,13 +313,13 @@ class HFChatSession:
                 for chunk in gen:
                     accumulated += chunk
                     # Update last history entry with accumulated text
-                    self.history[-1][1] = accumulated
+                    self._history[-1][1] = accumulated
                     yield chunk
 
             return history_stream_wrapper(resp)
         elif isinstance(resp, str):
             # Non-streaming: just store the response in history
-            self.history.append([message, resp])
+            self._history.append([message, resp])
             return resp
         else:
             raise ValueError("Unexpected response type from generate_content")

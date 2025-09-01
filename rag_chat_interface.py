@@ -208,6 +208,7 @@ class RAGChatInterface:
                     llm_top_k=self._llm_top_k,
                     retriever_top_k_docs=self._retriever_top_k_docs,
                 )
+
             except Exception as e:
                 print(f"Error loading RagChat: {e}")
                 self._rag_chat = None
@@ -385,6 +386,7 @@ if __name__ == "__main__":
     )
     # llm_client = LLMModel(model_or_name="gemini-2.0-flash", "google/gemma-2-2b-it", "google/gemma-3-270m"
     # system_instruction=sys_instruction)
+
     llm_client = LLMModel("google/gemma-3-270m", system_instruction="You are concise.")
     app = RAGChatInterface(
         model=llm_client,

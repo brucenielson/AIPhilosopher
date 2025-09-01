@@ -12,7 +12,7 @@ from typing import Any, List, Union, Optional, Dict
 import time
 import re
 from models.hf_model_wrapper import HFModelWrapper
-from models.gemini_utils import initialize_gemini_model, VALID_GEMINI_MODELS, chat_to_gemini_format
+from models.gemini_utils import initialize_gemini_model, chat_to_gemini_format, get_gemini_models
 from types import GeneratorType
 
 
@@ -27,6 +27,7 @@ class LLMModel:
                  ):
 
         self._model: Union[genai.GenerativeModel, HFModelWrapper]
+
         # String identifier cases
         if isinstance(model_or_name, str):
             # If model name contains a '/' this is a Hugging Face model
@@ -35,7 +36,7 @@ class LLMModel:
                 self._model = HFModelWrapper(model_or_name,
                                              system_instruction=system_instruction,
                                              hf_token=secret_token)
-            elif model_or_name in VALID_GEMINI_MODELS:
+            elif model_or_name in get_gemini_models(secret_token=secret_token):
                 # If a Gemini model name is provided, initialize the Gemini model.
                 self._model = initialize_gemini_model(
                     model_name=model_or_name,
@@ -44,7 +45,7 @@ class LLMModel:
                 )
             else:
                 raise ValueError(f"Invalid model name: {model_or_name}. For Hugging Face models prefix with 'hf:'. "
-                                 f"Valid Gemini models are: {', '.join(VALID_GEMINI_MODELS)}.")
+                                 f"Valid Gemini models are: {', '.join(get_gemini_models())}.")
         elif isinstance(model_or_name, genai.GenerativeModel):
             self._model = model_or_name
         elif isinstance(model_or_name, HFModelWrapper):
@@ -79,6 +80,22 @@ class LLMModel:
             #                              system_instruction=self._model.system_instruction,
             #                              hf_token=password)
             self._password = password
+
+    @property
+    def model_name(self) -> str:
+        return self._model.model_name
+
+    @property
+    def system_instruction(self) -> Optional[str]:
+        return self._system_instruction
+
+    @property
+    def tools(self) -> List[Tool]:
+        return self._tools
+
+    @property
+    def has_secret_token(self) -> bool:
+        return self._password is not None and len(self._password) > 0
 
     @staticmethod
     def normalize_response(response):
