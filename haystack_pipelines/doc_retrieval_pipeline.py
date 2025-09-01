@@ -21,6 +21,7 @@ from neo4j_haystack import Neo4jDocumentStore
 from typing import Optional, Dict, Any, Union, List, Tuple
 from pathlib import Path
 from models import generator_model as gen
+from utilities.gen_utilities import get_secret
 from enum import Enum
 from components.custom_haystack_components import (DocumentCollector, RetrieverWrapper, QueryComponent, print_debug_results, Reranker
                                                    )
@@ -283,7 +284,7 @@ class DocRetrievalPipeline:
 
 
 def main() -> None:
-    password: str = gen.get_secret(r'D:\Documents\Secrets\postgres_password.txt')
+    password: str = get_secret(r'D:\Documents\Secrets\postgres_password.txt')
     user_name: str = "postgres"
     db_name: str = "postgres"
 

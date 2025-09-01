@@ -5,6 +5,7 @@ import gradio as gr
 from typing import Optional
 from rag_chat import RagChat
 from models.llm_model import LLMModel
+from utilities.gen_utilities import get_secret
 
 
 class RAGChatInterface:
@@ -386,8 +387,8 @@ if __name__ == "__main__":
     )
     # llm_client = LLMModel(model_or_name="gemini-2.0-flash", "google/gemma-2-2b-it", "google/gemma-3-270m"
     # system_instruction=sys_instruction)
-
-    llm_client = LLMModel("google/gemma-3-270m", system_instruction="You are concise.")
+    # google_secret: str = get_secret(r'D:\Documents\Secrets\gemini_secret.txt')  # Put your path here # noqa: F841
+    llm_client = LLMModel("google/gemma-3-270m", system_instruction="You are concise.", secret_token=None)
     app = RAGChatInterface(
         model=llm_client,
         title="Karl Popper Chatbot",

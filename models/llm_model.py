@@ -44,7 +44,7 @@ class LLMModel:
                     google_secret=secret_token
                 )
             else:
-                raise ValueError(f"Invalid model name: {model_or_name}. For Hugging Face models prefix with 'hf:'. "
+                raise ValueError(f"Invalid model name: {model_or_name}."
                                  f"Valid Gemini models are: {', '.join(get_gemini_models())}.")
         elif isinstance(model_or_name, genai.GenerativeModel):
             self._model = model_or_name
@@ -55,9 +55,12 @@ class LLMModel:
 
         self._chat_session: Optional[Any] = None
         self._system_instruction: Optional[str] = system_instruction
-        self._password: Optional[str] = secret_token
         self._tools: List[Tool] = tools if tools is not None else []
         self._config: Optional[GenerationConfig] = None
+        # Handle login
+        self._password: Optional[str]
+        if secret_token:
+            self.login(secret_token)
 
         if secret_token and isinstance(model_or_name, genai.GenerativeModel):
             # Login to the Gemini API using the provided secret_token.

@@ -30,7 +30,7 @@ import sounddevice as sd
 import numpy as np
 import torch
 import requests
-from models import generator_model as gen
+from utilities.gen_utilities import get_secret
 from docling.document_converter import DocumentConverter, ConversionResult
 from docling_core.types import DoclingDocument
 from docling_parser import DoclingParser
@@ -103,7 +103,7 @@ class TextToSpeech:
     def __init__(self, model_name_or_path: str = "suno/bark-small"):
         # Initialize with Hugging Face API token and model name
         self.api_url = f"https://api-inference.huggingface.co/models/{model_name_or_path}"
-        hf_secret: str = gen.get_secret(r'D:\Documents\Secrets\huggingface_secret.txt')  # Put your path here
+        hf_secret: str = get_secret(r'D:\Documents\Secrets\huggingface_secret.txt')  # Put your path here
         self.headers = {"Authorization": f"Bearer {hf_secret}"}
 
     @component.output_types(text=str)

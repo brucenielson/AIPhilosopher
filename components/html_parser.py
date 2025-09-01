@@ -3,7 +3,7 @@ from bs4 import BeautifulSoup, Tag
 from typing import List, Dict, Tuple, Iterator, Optional
 # noinspection PyPackageRequirements
 from haystack.dataclasses import ByteStream
-from parse_utils import enhance_title
+from utilities.parse_utils import enhance_title
 
 
 def get_header_level(paragraph: Tag) -> Optional[int]:

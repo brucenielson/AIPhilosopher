@@ -11,7 +11,7 @@ from typing import List, Dict, Any, Tuple
 from haystack_pipelines.doc_retrieval_pipeline import DocRetrievalPipeline
 # noinspection PyPackageRequirements
 from haystack import Document
-from models.generator_model import get_secret
+from utilities.gen_utilities import get_secret
 from models.llm_model import LLMModel, initialize_gemini_model
 
 

@@ -25,6 +25,7 @@ from neo4j_haystack import Neo4jDocumentStore, Neo4jEmbeddingRetriever
 from typing import Optional, Dict, Any, Union
 from pathlib import Path
 from models import generator_model as gen
+from utilities.gen_utilities import get_secret
 from enum import Enum
 import textwrap
 from document_processor import DocumentStoreType
@@ -423,16 +424,16 @@ def main() -> None:
     user_name: str = ""
     db_name: str = ""
     if doc_store_type == DocumentStoreType.Pgvector:
-        password = gen.get_secret(r'D:\Documents\Secrets\postgres_password.txt')
+        password = get_secret(r'D:\Documents\Secrets\postgres_password.txt')
         user_name = "postgres"
         db_name = "postgres"
     elif doc_store_type == DocumentStoreType.Neo4j:
-        password = gen.get_secret(r'D:\Documents\Secrets\neo4j_password.txt')
+        password = get_secret(r'D:\Documents\Secrets\neo4j_password.txt')
         user_name = "neo4j"
         db_name = "neo4j"
 
-    # hf_secret: str = gen.get_secret(r'D:\Documents\Secrets\huggingface_secret.txt')  # Put your path here
-    google_secret: str = gen.get_secret(r'D:\Documents\Secrets\gemini_secret.txt')  # Put your path here # noqa: F841
+    # hf_secret: str = get_secret(r'D:\Documents\Secrets\huggingface_secret.txt')  # Put your path here
+    google_secret: str = get_secret(r'D:\Documents\Secrets\gemini_secret.txt')  # Put your path here # noqa: F841
     # model: gen.GeneratorModel = gen.HuggingFaceLocalModel(password=hf_secret, model_name="google/gemma-1.1-2b-it")
     model: gen.GeneratorModel = gen.GoogleGeminiModel(password=google_secret)
     # model: gen.GeneratorModel = gen.HuggingFaceAPIModel(password=hf_secret, model_name="HuggingFaceH4/zephyr-7b-alpha")  # noqa: E501
