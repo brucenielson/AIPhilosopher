@@ -12,12 +12,17 @@ from typing import Any, List, Union, Optional, Dict
 import time
 import re
 from models.hf_model_wrapper import HFModelWrapper
-from models.gemini_utils import initialize_gemini_model, chat_to_gemini_format, get_gemini_models
+from models.gemini_utils import (initialize_gemini_model,
+                                 chat_to_gemini_format,
+                                 get_gemini_models,
+                                 MinGeminiCompatible,
+                                 GeminiWrapper,
+                                 )
 from types import GeneratorType
 
 
 class LLMModel:
-    def __init__(self, model_or_name: Union[str, genai.GenerativeModel, HFModelWrapper],
+    def __init__(self, model_or_name: Union[str, genai.GenerativeModel, MinGeminiCompatible, Any],
                  *,
                  secret_token: Optional[str] = None,
                  system_instruction: Optional[str] = None,
@@ -25,11 +30,29 @@ class LLMModel:
                  config: GenerationConfig = None,
                  **generation_kwargs: Any
                  ):
+        """
+        Initialize the LLMModel with either a model name or an existing model instance.
+        Args:
+            model_or_name (Union[str, genai.GenerativeModel, MinGeminiCompatible, Any]):
+                The model name as a string (for Gemini or Hugging Face) or an existing model instance.
+                Any model that implements the MinGeminiCompatible interface can be used.
+                In fact, it is duck typed, so if the model has the necessary methods, it will work.
+            secret_token (Optional[str]): The secret token for authentication (Gemini API key or HF token).
+            system_instruction (Optional[str]): The system instruction to guide the model's behavior.
+            tools (List[Tool]): A list of tools to be used with the model (Gemini only).
+            config (GenerationConfig): Predefined generation configuration for the model.
+            **generation_kwargs: Additional generation parameters to override defaults in config.
+        """
 
-        self._model: Union[genai.GenerativeModel, HFModelWrapper]
-
+        self._model: Union[genai.GenerativeModel, MinGeminiCompatible, Any]
+        if isinstance(model_or_name, genai.GenerativeModel):
+            # If an existing Gemini model wrap it with our interface
+            self._model = GeminiWrapper(model_or_name)
+        elif isinstance(model_or_name, MinGeminiCompatible):
+            # If an existing MinGeminiCompatible model is provided, use it directly.
+            self._model = model_or_name
         # String identifier cases
-        if isinstance(model_or_name, str):
+        elif isinstance(model_or_name, str):
             # If model name contains a '/' this is a Hugging Face model
             if "/" in model_or_name:
                 # initialize HF wrapper
@@ -38,20 +61,18 @@ class LLMModel:
                                              hf_token=secret_token)
             elif model_or_name in get_gemini_models(secret_token=secret_token):
                 # If a Gemini model name is provided, initialize the Gemini model.
-                self._model = initialize_gemini_model(
+                model: genai.GenerativeModel = initialize_gemini_model(
                     model_name=model_or_name,
                     system_instruction=system_instruction,
                     google_secret=secret_token
                 )
+                self._model = GeminiWrapper(model)
             else:
                 raise ValueError(f"Invalid model name: {model_or_name}."
                                  f"Valid Gemini models are: {', '.join(get_gemini_models())}.")
-        elif isinstance(model_or_name, genai.GenerativeModel):
-            self._model = model_or_name
-        elif isinstance(model_or_name, HFModelWrapper):
-            self._model = model_or_name
         else:
-            raise TypeError("model_or_name must be a string, an instance of genai.GenerativeModel, or HFModelWrapper.")
+            print("Warning: model_or_name is not a recognized type. Attempting to use it as-is.")
+            self._model = model_or_name
 
         self._chat_session: Optional[Any] = None
         self._system_instruction: Optional[str] = system_instruction
@@ -72,17 +93,19 @@ class LLMModel:
         self._config = config
 
     def login(self, password: str):
-        if isinstance(self._model, genai.GenerativeModel):
+        if isinstance(self._model, genai.GenerativeModel) or isinstance(self._model, GeminiWrapper):
             genai.configure(api_key=password)
             self._password = password
         elif isinstance(self._model, HFModelWrapper):
             # For HF, store token and re-create pipeline if desired.
             self._model.hf_token = password
             # NOTE: pipeline re-creation might be necessary depending on auth scope.
-            # self._model = HFModelWrapper(self._model.model_name,
-            #                              system_instruction=self._model.system_instruction,
-            #                              hf_token=password)
+            self._model = HFModelWrapper(self._model.model_name,
+                                         system_instruction=self._model.system_instruction,
+                                         hf_token=password)
             self._password = password
+        else:
+            raise TypeError("Underlying model does not support login with a password/token.")
 
     @property
     def model_name(self) -> str:
@@ -129,12 +152,19 @@ class LLMModel:
                          **generation_kwargs: Any
                          ) -> Union[GenerateContentResponse, GeneratorType, str]:
 
-        response = LLMModel._send_message(self._model,
-                                          message,
-                                          tools=tools if tools is not None else self._tools,
-                                          stream=stream,
-                                          config=config if config is not None else self._config,
-                                          **generation_kwargs)
+        if isinstance(self._model, MinGeminiCompatible) or hasattr(self._model, "generate_content"):
+            # If the model is MinGeminiCompatible or has generate_content, use that method directly.
+            response = self._model.generate_content(
+                contents=message,
+                generation_config=config if config is not None else self._config,
+                tools=tools if tools is not None else self._tools,
+                stream=stream,
+                **generation_kwargs
+            )
+        else:
+            # Otherwise raise an error
+            raise TypeError("Underlying model does not support generate_content method.")
+
         return response
 
     def send_chat_message(self,
@@ -149,7 +179,7 @@ class LLMModel:
 
         formatted_chat_history: Optional[Union[List[Dict[str, Any]], List[List[str]]]] = None
         if chat_history is not None:
-            if isinstance(self._model, genai.GenerativeModel):
+            if isinstance(self._model, genai.GenerativeModel) or isinstance(self._model, GeminiWrapper):
                 formatted_chat_history = chat_to_gemini_format(chat_history)
             else:
                 formatted_chat_history = deepcopy(chat_history)
@@ -162,11 +192,18 @@ class LLMModel:
                 # fallback: create a dummy HFChatSession-like wrapper if possible
                 raise RuntimeError("Underlying model does not support chat sessions.")
 
-        response = LLMModel._send_message(self._chat_session,
+        # Merge generation_kwargs into GenerationConfig
+        if config is None:
+            config = GenerationConfig(**generation_kwargs)
+        else:
+            for k, v in generation_kwargs.items():
+                setattr(config, k, v)
+
+        response = self._chat_session.send_message(
                                           message,
                                           tools=tools if tools is not None else self._tools,
                                           stream=stream,
-                                          config=config if config is not None else self._config,
+                                          generation_config=config if config is not None else self._config,
                                           **generation_kwargs)
 
         return response
@@ -208,8 +245,7 @@ class LLMModel:
             pass
         return default
 
-    @staticmethod
-    def _send_message(model: Any,
+    def _send_message(self,
                       message: str,
                       tools: List[Tool] = None,
                       stream: bool = False,
@@ -219,53 +255,23 @@ class LLMModel:
         if config is None and generation_kwargs:
             config = GenerationConfig(**generation_kwargs)
 
-        try:
-            # Duck-typed chat detection (works for Google ChatSession and HFChatSession)
-            if hasattr(model, "send_message") and callable(getattr(model, "send_message")):
-                response = model.send_message(message,
-                                              generation_config=config,
-                                              tools=tools,
-                                              stream=stream)
-                # normalize_response = LLMModel.normalize_response(response)
-                # full_text = "".join(normalize_response)  # consume generator
-                return response
-            # else try generate_content for model wrappers (Gemini or HFModelWrapper)
-            elif hasattr(model, "generate_content") and callable(getattr(model, "generate_content")):
-                response = model.generate_content(
-                    contents=message,
-                    generation_config=config,
-                    tools=tools,
-                    stream=stream
-                )
-                return getattr(response, "text", None) or "[No response text]"
-            else:
-                raise TypeError("Provided model object does not implement send_message or generate_content.")
-        except ResourceExhausted as e:
-            # Handle Google rate limit errors (Gemini)
-            delay = LLMModel._extract_retry_seconds(e)
-            if delay is None or delay <= 0:
-                delay = 15
-            print(f"\nRate limit exceeded. Retrying in {delay} seconds...")
-            time.sleep(delay)
-            return LLMModel._send_message(model,
-                                          message,
-                                          tools=tools,
-                                          stream=stream,
-                                          config=config,
-                                          **generation_kwargs)
-        except Exception as e:
-            # A simple retry heuristic for HF rate-limit-style errors
-            msg = str(e).lower()
-            if "rate limit" in msg or "429" in msg:
-                # small backoff and retry once
-                delay = 10
-                print(f"Rate limit-like error detected from HF/provider. Retrying in {delay} seconds...")
-                time.sleep(delay)
-                return LLMModel._send_message(model,
-                                              message,
-                                              tools=tools,
-                                              stream=stream,
-                                              config=config,
-                                              **generation_kwargs)
-            print(f"Error during chat message sending: {e}")
-            raise
+        # Duck-typed chat detection (works for Google ChatSession and HFChatSession)
+        if hasattr(self._model, "send_message") and callable(getattr(self._model, "send_message")):
+            response = self._model.send_message(message,
+                                                generation_config=config,
+                                                tools=tools,
+                                                stream=stream)
+            # normalize_response = LLMModel.normalize_response(response)
+            # full_text = "".join(normalize_response)  # consume generator
+            return response
+        # else try generate_content for model wrappers (Gemini or HFModelWrapper)
+        elif hasattr(self._model, "generate_content") and callable(getattr(self._model, "generate_content")):
+            response = self._model.generate_content(
+                contents=message,
+                generation_config=config,
+                tools=tools,
+                stream=stream
+            )
+            return getattr(response, "text", None) or "[No response text]"
+        else:
+            raise TypeError("Provided model object does not implement send_message or generate_content.")
