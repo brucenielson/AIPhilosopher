@@ -60,7 +60,7 @@ class LLMModel:
                                              hf_token=secret_token)
             elif model_or_name in get_gemini_models(secret_token=secret_token):
                 # If a Gemini model name is provided, initialize the Gemini model.
-                model: genai.GenerativeModel = initialize_gemini_model(
+                model: GeminiWrapper = initialize_gemini_model(
                     model_name=model_or_name,
                     system_instruction=system_instruction,
                     google_secret=secret_token,
@@ -96,17 +96,26 @@ class LLMModel:
         return isinstance(self._model, genai.GenerativeModel) or isinstance(self._model, GeminiWrapper)
 
     def login(self, password: str):
+        if self.has_secret_token:
+            # Already logged in
+            return
+
         if self.is_gemini_model():
-            genai.configure(api_key=password)
-            self._password = password
+            try:
+                genai.configure(api_key=password)
+                self._password = password
+            except Exception as e:
+                raise RuntimeError(f"Failed to configure Gemini API with provided token: {e}")
         elif isinstance(self._model, HFModelWrapper):
-            # For HF, store token and re-create pipeline if desired.
-            self._model.hf_token = password
-            # NOTE: pipeline re-creation might be necessary depending on auth scope.
-            self._model = HFModelWrapper(self._model.model_name,
-                                         system_instruction=self._model.system_instruction,
-                                         hf_token=password)
-            self._password = password
+            try:
+                # For HF, store token and re-create pipeline if desired.
+                # NOTE: pipeline re-creation might be necessary depending on auth scope.
+                self._model = HFModelWrapper(self._model.model_name,
+                                             system_instruction=self._model.system_instruction,
+                                             hf_token=password)
+                self._password = password
+            except Exception as e:
+                raise RuntimeError(f"Failed to authenticate Hugging Face model with provided token: {e}")
         else:
             raise TypeError("Underlying model does not support login with a password/token.")
 

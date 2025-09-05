@@ -13,6 +13,7 @@ from transformers import (
 from transformers.generation import GenerationConfig as HFGenConfig
 import threading
 from models.gemini_utils import MinGeminiCompatible, GeminiChatSessionCompatible
+from huggingface_hub import HfFolder
 
 TRITON_REQUIRED_CAPABILITY = 7  # minimum GPU capability for triton backend
 
@@ -72,6 +73,8 @@ class HFModelWrapper(MinGeminiCompatible):
         super().__init__(model_name, system_instruction)
         self._model_name = model_name
         self._system_instruction = system_instruction
+        if hf_token is None:
+            hf_token = HfFolder.get_token()
         self._hf_token = hf_token
         self._dtype = dtype
         self._device = device
@@ -117,7 +120,7 @@ class HFModelWrapper(MinGeminiCompatible):
 
         self._model = AutoModelForCausalLM.from_pretrained(
             model_name,
-            token=hf_token,
+            token=self._hf_token,
             torch_dtype=torch_dtype,
         ).to(device=self._device)
 
@@ -128,6 +131,10 @@ class HFModelWrapper(MinGeminiCompatible):
         #     tokenizer=self._tokenizer,
         #     use_fast=True,
         # )
+
+    @property
+    def is_logged_in(self) -> bool:
+        return self._hf_token is not None and self._hf_token == HfFolder.get_token()
 
     @property
     def system_instruction(self) -> Optional[str]:
