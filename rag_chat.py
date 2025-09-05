@@ -8,7 +8,7 @@ from haystack_pipelines.doc_retrieval_pipeline import DocRetrievalPipeline, Sear
 from haystack_pipelines.document_processor import DocumentProcessor
 # noinspection PyPackageRequirements
 from haystack import Document
-from typing import Optional, List, Dict, Any, Iterator, Union, Tuple, Generator
+from typing import Optional, List, Iterator, Union, Tuple, Generator
 from react_agent import format_document, ReActAgent
 from models.llm_model import LLMModel
 
@@ -316,4 +316,3 @@ class RagChat:
                 # Gemma seems to have some bad responses that cause a ValueError when trying to access
                 # So skip over those.
                 continue
-

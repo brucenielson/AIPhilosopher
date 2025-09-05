@@ -120,10 +120,10 @@ class MinGeminiCompatible(ABC):
                  model_name: Optional[str] = None,
                  system_instruction: Optional[str] = None,
                  secret_token: Optional[str] = None):
-        self._model = model
-        self._model_name = model_name
-        self._system_instruction = system_instruction
-        self._secret_token = secret_token
+        self._model: genai.GenerativeModel = model
+        self._model_name: str = model_name
+        self._system_instruction: str = system_instruction
+        self._secret_token: str = secret_token
 
     @property
     def model_name(self) -> str:
@@ -134,7 +134,7 @@ class MinGeminiCompatible(ABC):
         return self._system_instruction
 
     @abstractmethod
-    def generate_content(self, prompt: str, **kwargs) -> str:
+    def generate_content(self, contents: str, **kwargs) -> str:
         """
         Generate text for a single prompt.
         """
@@ -159,7 +159,7 @@ class GeminiChatSessionCompatible(ABC):
         self._history: Union[List[List[str]], Optional[List[Dict[str, Any]]]] = history or []
 
     @abstractmethod
-    def send_message(self, prompt: str, **kwargs) -> str:
+    def send_message(self, contents: str, **kwargs) -> str:
         """
         Send a message in the ongoing chat and return the model's reply.
         """

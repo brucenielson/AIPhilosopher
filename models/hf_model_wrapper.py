@@ -1,7 +1,7 @@
 import torch
 from typing import List, Optional, Union, Generator
-# noinspection PyPackageRequirements
-from google.generativeai.types.generation_types import GenerationConfig
+# # noinspection PyPackageRequirements
+# from google.generativeai.types.generation_types import GenerationConfig as GGenConfig
 from transformers import (
     AutoTokenizer,
     AutoModelForCausalLM,
@@ -9,8 +9,8 @@ from transformers import (
     PreTrainedTokenizerFast,
     PreTrainedModel,
     TextIteratorStreamer,
-    GenerationConfig,
 )
+from transformers.generation import GenerationConfig as HFGenConfig
 import threading
 from models.gemini_utils import MinGeminiCompatible, GeminiChatSessionCompatible
 
@@ -138,11 +138,19 @@ class HFModelWrapper(MinGeminiCompatible):
         self._system_instruction = value
 
     def generate_content(self,
-                         prompt: str,
-                         generation_config: GenerationConfig = None,
+                         contents: str,
+                         generation_config: Optional[HFGenConfig] = None,
                          tools=None,
                          stream=False) -> Union[str, Generator[str, None, None]]:
-        gen_kwargs: dict = generation_config.to_dict() if generation_config else {}
+        if generation_config is None:
+            gen_kwargs: dict = {}
+        elif isinstance(generation_config, HFGenConfig):
+            gen_kwargs = vars(generation_config).copy()
+        elif isinstance(generation_config, dict):
+            gen_kwargs = generation_config.copy()
+        else:
+            raise TypeError(f"Unsupported generation_config type: {type(generation_config)}")
+
         gen_kwargs.update(dict(do_sample=True, num_beams=1))
 
         # Respect model’s max length (don’t hardcode)
@@ -151,7 +159,7 @@ class HFModelWrapper(MinGeminiCompatible):
         )
 
         inputs: dict[str, torch.Tensor] = self._tokenizer(
-            prompt,
+            contents,
             return_tensors="pt",
             truncation=True,
             max_length=self._model_max_length,
@@ -167,11 +175,11 @@ class HFModelWrapper(MinGeminiCompatible):
         if not stream:
             outputs: torch.LongTensor = self._model.generate(**inputs, **gen_kwargs)
             text: str = self._tokenizer.decode(outputs[0], skip_special_tokens=True)
-            return text[len(prompt):]  # strip input prompt from start of output
+            return text[len(contents):]  # strip input prompt from start of output
         else:
             # --- Streaming branch ---
-            # Reuse gen_kwargs from above instead of resetting it
-            gen_kwargs.setdefault("max_new_tokens", 256)
+            # TODO: Reuse gen_kwargs from above instead of resetting it
+            # gen_kwargs.setdefault("max_new_tokens", 256)
 
             # Decode canonical prompt for stripping later
             canonical_prompt = self._tokenizer.decode(
@@ -299,13 +307,13 @@ class HFChatSession(GeminiChatSessionCompatible):
         # join with newlines
         return "\n".join(parts)
 
-    def send_message(self, message: str, generation_config: GenerationConfig = None, tools=None, stream=False):
-        prompt = self._build_prompt(message)
+    def send_message(self, content: str, generation_config: Optional[HFGenConfig] = None, tools=None, stream=False):
+        prompt = self._build_prompt(content)
         resp = self._wrapper.generate_content(prompt, generation_config=generation_config, tools=tools, stream=stream)
 
         if isinstance(resp, Generator):
             # Add a placeholder in history
-            self._history.append([message, ""])
+            self._history.append([content, ""])
 
             # Wrap the generator to update history incrementally
             def history_stream_wrapper(gen):
@@ -319,7 +327,7 @@ class HFChatSession(GeminiChatSessionCompatible):
             return history_stream_wrapper(resp)
         elif isinstance(resp, str):
             # Non-streaming: just store the response in history
-            self._history.append([message, resp])
+            self._history.append([content, resp])
             return resp
         else:
             raise ValueError("Unexpected response type from generate_content")

@@ -26,7 +26,7 @@ class RAGChatInterface:
         self._retriever_top_k_docs: int = retriever_top_k_docs
 
     def load_config_data(self) -> dict[str, str]:
-        google_password: str = ""
+        model_password: str = ""
         postgres_password: str = ""
         postgres_user_name: str = "postgres"
         postgres_db_name: str = "postgres"
@@ -40,7 +40,7 @@ class RAGChatInterface:
             with open("config.txt", "r") as f:
                 lines = f.readlines()
                 if len(lines) >= 9:
-                    google_password = lines[0].strip()
+                    model_password = lines[0].strip()
                     postgres_password = lines[1].strip()
                     postgres_user_name = lines[2].strip()
                     postgres_db_name = lines[3].strip()
@@ -51,11 +51,11 @@ class RAGChatInterface:
                     system_instructions = lines[8].strip()
 
         # Login to Google Gemini if a password is provided
-        if google_password:
-            self._model.login(google_password)
+        if model_password:
+            self._model.login(model_password)
 
         return {
-            "google_password": google_password,
+            "model_password": model_password,
             "postgres_password": postgres_password,
             "postgres_user_name": postgres_user_name,
             "postgres_db_name": postgres_db_name,
@@ -145,7 +145,7 @@ class RAGChatInterface:
                     with gr.Group():
                         google_secret_tb = gr.Textbox(
                             label="Gemini API Key", placeholder="Enter your Gemini API key here",
-                            value=config_data["google_password"], type="password", interactive=True,
+                            value=config_data["model_password"], type="password", interactive=True,
                         )
                     gr.Markdown("### Postgres Settings")
                     with gr.Group():
@@ -195,7 +195,7 @@ class RAGChatInterface:
         if not config_data["system_instructions"]:
             config_data["system_instructions"] = self._system_instructions
 
-        if config_data["google_password"] and config_data["postgres_password"] and self._rag_chat is None:
+        if config_data["model_password"] and config_data["postgres_password"] and self._rag_chat is None:
             try:
                 self._rag_chat = RagChat(
                     self._model,
@@ -222,7 +222,7 @@ class RAGChatInterface:
         return (
             gr.update(value=self._config_data["title"]),
             gr.update(value=self._config_data["system_instructions"]),
-            gr.update(value=self._config_data["google_password"]),
+            gr.update(value=self._config_data["model_password"]),
             gr.update(value=self._config_data["postgres_password"]),
             gr.update(value=self._config_data["postgres_user_name"]),
             gr.update(value=self._config_data["postgres_db_name"]),
@@ -258,7 +258,7 @@ class RAGChatInterface:
         return []
 
     def update_config(self,
-                      google_password_param,
+                      model_password_param,
                       postgres_password_param,
                       postgres_user_name_param,
                       postgres_db_name_param,
@@ -268,7 +268,7 @@ class RAGChatInterface:
                       title_param,
                       system_instructions_param):
         with open("config.txt", "w") as file:
-            file.write(f"{google_password_param}\n")
+            file.write(f"{model_password_param}\n")
             file.write(f"{postgres_password_param}\n")
             file.write(f"{postgres_user_name_param}\n")
             file.write(f"{postgres_db_name_param}\n")
@@ -293,7 +293,7 @@ class RAGChatInterface:
         )
 
         return (
-            google_password_param, postgres_password_param,
+            model_password_param, postgres_password_param,
             postgres_user_name_param, postgres_db_name_param,
             postgres_table_name_param, postgres_host_param,
             postgres_port_param, title_param,
@@ -388,7 +388,7 @@ if __name__ == "__main__":
     # llm_client = LLMModel(model_or_name="gemini-2.0-flash", "google/gemma-2-2b-it", "google/gemma-3-270m"
     # system_instruction=sys_instruction)
     google_secret: str = get_secret(r'D:\Documents\Secrets\gemini_secret.txt')  # Put your path here # noqa: F841
-    llm_client = LLMModel("gemini-2.0-flash", system_instruction="You are concise.", secret_token=None)
+    llm_client = LLMModel("google/gemma-3-270m", system_instruction="You are concise.", secret_token=None)
     app = RAGChatInterface(
         model=llm_client,
         title="Karl Popper Chatbot",

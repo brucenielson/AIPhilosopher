@@ -5,11 +5,10 @@ import google.generativeai as genai
 # noinspection PyPackageRequirements
 from google.api_core.exceptions import ResourceExhausted
 # noinspection PyPackageRequirements
-from google.generativeai.types.generation_types import GenerationConfig, GenerateContentResponse
+from google.generativeai.types.generation_types import GenerateContentResponse
 # noinspection PyPackageRequirements
 from google.generativeai.types import Tool
 from typing import Any, List, Union, Optional, Dict
-import time
 import re
 from models.hf_model_wrapper import HFModelWrapper
 from models.gemini_utils import (initialize_gemini_model,
@@ -27,7 +26,7 @@ class LLMModel:
                  secret_token: Optional[str] = None,
                  system_instruction: Optional[str] = None,
                  tools: List[Tool] = None,
-                 config: GenerationConfig = None,
+                 config: Optional[Dict[str, Any]] = None,
                  **generation_kwargs: Any
                  ):
         """
@@ -78,7 +77,7 @@ class LLMModel:
         self._chat_session: Optional[Any] = None
         self._system_instruction: Optional[str] = system_instruction
         self._tools: List[Tool] = tools if tools is not None else []
-        self._config: Optional[GenerationConfig] = None
+        self._config: Dict[str, Any] = {}
         # Handle login
         self._password: Optional[str] = None
         if secret_token:
@@ -88,9 +87,9 @@ class LLMModel:
             # Login to the Gemini API using the provided secret_token.
             genai.configure(api_key=secret_token)
 
-        if config is None and generation_kwargs:
+        if not config and generation_kwargs:
             # Set up the config with any provided generation parameters
-            config = GenerationConfig(**generation_kwargs)
+            config = dict(generation_kwargs)
         self._config = config
 
     def is_gemini_model(self) -> bool:
@@ -152,7 +151,7 @@ class LLMModel:
                          message: str,
                          stream: bool = False,
                          tools: List[Tool] = None,
-                         config: GenerationConfig = None,
+                         config: Optional[Dict[str, Any]] = None,
                          **generation_kwargs: Any
                          ) -> Union[GenerateContentResponse, GeneratorType, str]:
 
@@ -177,7 +176,7 @@ class LLMModel:
                           chat_session_reset: bool = False,
                           stream: bool = False,
                           tools: List[Tool] = None,
-                          config: GenerationConfig = None,
+                          config: Optional[Dict[str, Any]] = None,
                           **generation_kwargs: Any
                           ) -> Union[GenerateContentResponse, GeneratorType, str]:
 
@@ -197,11 +196,10 @@ class LLMModel:
                 raise RuntimeError("Underlying model does not support chat sessions.")
 
         # Merge generation_kwargs into GenerationConfig
-        if config is None:
-            config = GenerationConfig(**generation_kwargs)
+        if not config:
+            config = dict(generation_kwargs)
         else:
-            for k, v in generation_kwargs.items():
-                setattr(config, k, v)
+            config = {**config, **generation_kwargs}
 
         response = self._chat_session.send_message(
                                           message,
@@ -253,11 +251,12 @@ class LLMModel:
                       message: str,
                       tools: List[Tool] = None,
                       stream: bool = False,
-                      config: GenerationConfig = None,
+                      config: Optional[Dict[str, Any]] = None,
                       **generation_kwargs: Any) -> Union[GenerateContentResponse, GeneratorType, str]:
 
-        if config is None and generation_kwargs:
-            config = GenerationConfig(**generation_kwargs)
+        if not config and generation_kwargs:
+            config = {}
+            config = {**config, **generation_kwargs}
 
         # Duck-typed chat detection (works for Google ChatSession and HFChatSession)
         if hasattr(self._model, "send_message") and callable(getattr(self._model, "send_message")):
