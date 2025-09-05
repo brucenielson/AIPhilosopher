@@ -83,7 +83,7 @@ class LLMModel:
         if secret_token:
             self.login(secret_token)
 
-        if secret_token and self.is_gemini_model():
+        if secret_token and self._is_gemini_model():
             # Login to the Gemini API using the provided secret_token.
             genai.configure(api_key=secret_token)
 
@@ -92,7 +92,7 @@ class LLMModel:
             config = dict(generation_kwargs)
         self._config = config
 
-    def is_gemini_model(self) -> bool:
+    def _is_gemini_model(self) -> bool:
         return isinstance(self._model, genai.GenerativeModel) or isinstance(self._model, GeminiWrapper)
 
     def login(self, password: str):
@@ -100,7 +100,7 @@ class LLMModel:
             # Already logged in
             return
 
-        if self.is_gemini_model():
+        if self._is_gemini_model():
             try:
                 genai.configure(api_key=password)
                 self._password = password
@@ -191,7 +191,7 @@ class LLMModel:
 
         formatted_chat_history: Optional[Union[List[Dict[str, Any]], List[List[str]]]] = None
         if chat_history is not None:
-            if self.is_gemini_model():
+            if self._is_gemini_model():
                 formatted_chat_history = chat_to_gemini_format(chat_history)
             else:
                 formatted_chat_history = deepcopy(chat_history)
@@ -225,7 +225,7 @@ class LLMModel:
     def update_system_instruction(self, new_instruction: str) -> None:
         self._system_instruction = new_instruction
 
-        if self.is_gemini_model():
+        if self._is_gemini_model():
             # Recreate Gemini model with new system instruction (Gemini doesn't allow hot update)
             self._model = initialize_gemini_model(
                 model_name=self._model.model_name,
@@ -239,51 +239,3 @@ class LLMModel:
 
         # Reset chat so the new system instruction is applied fresh
         self.reset_chat()
-
-    # Gemini/HF specific utility methods
-    @staticmethod
-    def _extract_retry_seconds(exc: ResourceExhausted, default: int = 15) -> int:
-        """
-        Extracts retry_delay.seconds from the exception's details text.
-        Falls back to `default` if not found or parsing fails.
-        """
-        try:
-            details = str(getattr(exc, "details", ""))
-            match = re.search(r'retry_delay\s*{\s*seconds:\s*(\d+)', details)
-            if match:
-                return int(match.group(1))
-        except (ValueError, AttributeError):
-            pass
-        return default
-
-    def _send_message(self,
-                      message: str,
-                      tools: List[Tool] = None,
-                      stream: bool = False,
-                      config: Optional[Dict[str, Any]] = None,
-                      **generation_kwargs: Any) -> Union[GenerateContentResponse, GeneratorType, str]:
-
-        if not config and generation_kwargs:
-            config = {}
-            config = {**config, **generation_kwargs}
-
-        # Duck-typed chat detection (works for Google ChatSession and HFChatSession)
-        if hasattr(self._model, "send_message") and callable(getattr(self._model, "send_message")):
-            response = self._model.send_message(message,
-                                                generation_config=config,
-                                                tools=tools,
-                                                stream=stream)
-            # normalize_response = LLMModel.normalize_response(response)
-            # full_text = "".join(normalize_response)  # consume generator
-            return response
-        # else try generate_content for model wrappers (Gemini or HFModelWrapper)
-        elif hasattr(self._model, "generate_content") and callable(getattr(self._model, "generate_content")):
-            response = self._model.generate_content(
-                contents=message,
-                generation_config=config,
-                tools=tools,
-                stream=stream
-            )
-            return getattr(response, "text", None) or "[No response text]"
-        else:
-            raise TypeError("Provided model object does not implement send_message or generate_content.")
