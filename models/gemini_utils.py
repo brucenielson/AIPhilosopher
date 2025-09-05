@@ -53,21 +53,6 @@ def chat_to_gemini_format(history: List[List[str]]) -> List[Dict[str, Any]]:
     return new_history
 
 
-def initialize_gemini_model(model_name: str = "gemini-2.0-flash",
-                            system_instruction: Optional[str] = None,
-                            google_secret: Optional[str] = None) -> genai.GenerativeModel:
-    genai.configure(api_key=google_secret)
-    if 'gemma' in model_name:
-        # If using Gemma, set the system instruction to None as it does not support it.
-        system_instruction = None
-
-    model: genai.GenerativeModel = genai.GenerativeModel(
-        model_name=model_name,  # gemini-2.0-flash-exp, gemini-2.0-flash, gemma-3-27b-it
-        system_instruction=system_instruction
-    )
-    return model
-
-
 def gemini_extract_retry_seconds(exc: ResourceExhausted, default: int = 15) -> int:
     """
     Extracts retry_delay.seconds from the exception's details text.
@@ -236,7 +221,7 @@ class GeminiWrapper(MinGeminiCompatible):
 
     def __init__(self, model: genai.GenerativeModel):
         super().__init__(model=model,
-                         model_name=None,
+                         model_name=model.model_name,
                          system_instruction=None,
                          secret_token=None)
 
@@ -279,6 +264,10 @@ class GeminiWrapper(MinGeminiCompatible):
         )
         return GeminiChatSessionWrapper(chat)  # wraps in your BaseChatSession
 
+    @property
+    def model_name(self) -> str:
+        return self._model.model_name
+
     # --- transparent forwarding ---
     def __getattr__(self, name: str):
         """
@@ -286,3 +275,22 @@ class GeminiWrapper(MinGeminiCompatible):
         delegate it to the underlying GenerativeModel.
         """
         return getattr(self._model, name)
+
+
+def initialize_gemini_model(model_name: str = "gemini-2.0-flash",
+                            system_instruction: Optional[str] = None,
+                            google_secret: Optional[str] = None,
+                            include_wrapper: bool = True) -> Union[genai.GenerativeModel, GeminiWrapper]:
+    genai.configure(api_key=google_secret)
+    if 'gemma' in model_name:
+        # If using Gemma, set the system instruction to None as it does not support it.
+        system_instruction = None
+
+    mode: Union[genai.GenerativeModel, GeminiWrapper]
+    model = genai.GenerativeModel(
+        model_name=model_name,  # gemini-2.0-flash-exp, gemini-2.0-flash, gemma-3-27b-it
+        system_instruction=system_instruction
+    )
+    if include_wrapper:
+        model = GeminiWrapper(model)
+    return model

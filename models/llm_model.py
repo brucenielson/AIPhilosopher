@@ -64,9 +64,10 @@ class LLMModel:
                 model: genai.GenerativeModel = initialize_gemini_model(
                     model_name=model_or_name,
                     system_instruction=system_instruction,
-                    google_secret=secret_token
+                    google_secret=secret_token,
+                    include_wrapper=True,
                 )
-                self._model = GeminiWrapper(model)
+                self._model = model
             else:
                 raise ValueError(f"Invalid model name: {model_or_name}."
                                  f"Valid Gemini models are: {', '.join(get_gemini_models())}.")
