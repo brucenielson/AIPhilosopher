@@ -2,7 +2,7 @@
 import os
 import time
 import gradio as gr
-from typing import Optional
+from typing import Optional, Union, Any
 from rag_chat import RagChat
 from models.llm_model import LLMModel
 from utilities.general_utils import get_secret
@@ -11,15 +11,29 @@ from utilities.general_utils import get_secret
 class RAGChatInterface:
     def __init__(
         self,
-        model: LLMModel,
+        model_or_model_name: Union[LLMModel, str],
+        secret_token: Optional[str] = None,
         title: str = "RAG Chat",
         system_instructions: str = "You are a helpful assistant.",
         llm_top_k: int = 5,
         retriever_top_k_docs=100,
+        *,
+        config: Optional[dict] = None,
+        **generation_kwargs: Any
     ):
         self._title: str = title
         self._system_instructions: str = system_instructions
-        self._model: LLMModel = model
+        if isinstance(model_or_model_name, str):
+            self._model: LLMModel = LLMModel(model_or_name=model_or_model_name,
+                                             system_instruction=system_instructions,
+                                             secret_token=secret_token,
+                                             config=config,
+                                             **generation_kwargs)
+        elif isinstance(model_or_model_name, LLMModel):
+            self._model: LLMModel = model_or_model_name
+        else:
+            raise ValueError("model_or_model_name must be either a string or an instance of LLMModel.")
+
         self._rag_chat: Optional[RagChat] = None
         self._config_data: dict = {}
         self._llm_top_k: int = llm_top_k
@@ -51,7 +65,7 @@ class RAGChatInterface:
                     system_instructions = lines[8].strip()
 
         # Login to Google Gemini if a password is provided
-        if model_password:
+        if model_password and not self._model.has_secret_token:
             self._model.login(model_password)
 
         return {
@@ -388,11 +402,10 @@ if __name__ == "__main__":
     # llm_client = LLMModel(model_or_name="gemini-2.0-flash", "google/gemma-2-2b-it", "google/gemma-3-270m"
     # system_instruction=sys_instruction)
     google_secret: str = get_secret(r'D:\Documents\Secrets\gemini_secret.txt')  # Put your path here # noqa: F841
-    llm_client = LLMModel("google/gemma-3-270m", system_instruction="You are concise.", secret_token=None)
+    # llm_client = LLMModel("google/gemma-3-270m", system_instruction="You are concise.", secret_token=None)
     app = RAGChatInterface(
-        model=llm_client,
+        model_or_model_name="google/gemma-3-270m",
         title="Karl Popper Chatbot",
-        system_instructions=sys_instruction,
         llm_top_k=3,
         retriever_top_k_docs=10,
     )
