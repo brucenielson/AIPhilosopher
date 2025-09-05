@@ -1,22 +1,17 @@
 from copy import deepcopy
-
 # noinspection PyPackageRequirements
 import google.generativeai as genai
-# noinspection PyPackageRequirements
-from google.api_core.exceptions import ResourceExhausted
 # noinspection PyPackageRequirements
 from google.generativeai.types.generation_types import GenerateContentResponse
 # noinspection PyPackageRequirements
 from google.generativeai.types import Tool
 from typing import Any, List, Union, Optional, Dict
-import re
 from models.hf_model_wrapper import HFModelWrapper
 from models.gemini_utils import (initialize_gemini_model,
                                  chat_to_gemini_format,
                                  get_gemini_models,
-                                 MinGeminiCompatible,
-                                 GeminiWrapper,
                                  )
+from models.gemini_compatibility import MinGeminiCompatible, GeminiWrapper
 from types import GeneratorType
 
 

@@ -12,7 +12,8 @@ from haystack_pipelines.doc_retrieval_pipeline import DocRetrievalPipeline
 # noinspection PyPackageRequirements
 from haystack import Document
 from utilities.general_utils import get_secret
-from models.llm_model import LLMModel, initialize_gemini_model
+from models.llm_model import LLMModel
+from models.gemini_utils import initialize_gemini_model
 
 
 def format_document(doc, include_raw_info: bool = False) -> str:

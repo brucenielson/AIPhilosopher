@@ -12,7 +12,7 @@ from transformers import (
 )
 from transformers.generation import GenerationConfig as HFGenConfig
 import threading
-from models.gemini_utils import MinGeminiCompatible, GeminiChatSessionCompatible
+from models.gemini_compatibility import MinGeminiCompatible, GeminiChatSessionCompatible
 from huggingface_hub import HfFolder
 
 TRITON_REQUIRED_CAPABILITY = 7  # minimum GPU capability for triton backend
