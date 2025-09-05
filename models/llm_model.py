@@ -83,7 +83,7 @@ class LLMModel:
         if secret_token:
             self.login(secret_token)
 
-        if secret_token and isinstance(model_or_name, genai.GenerativeModel):
+        if secret_token and self.is_gemini_model():
             # Login to the Gemini API using the provided secret_token.
             genai.configure(api_key=secret_token)
 
@@ -92,8 +92,11 @@ class LLMModel:
             config = GenerationConfig(**generation_kwargs)
         self._config = config
 
+    def is_gemini_model(self) -> bool:
+        return isinstance(self._model, genai.GenerativeModel) or isinstance(self._model, GeminiWrapper)
+
     def login(self, password: str):
-        if isinstance(self._model, genai.GenerativeModel) or isinstance(self._model, GeminiWrapper):
+        if self.is_gemini_model():
             genai.configure(api_key=password)
             self._password = password
         elif isinstance(self._model, HFModelWrapper):
@@ -179,7 +182,7 @@ class LLMModel:
 
         formatted_chat_history: Optional[Union[List[Dict[str, Any]], List[List[str]]]] = None
         if chat_history is not None:
-            if isinstance(self._model, genai.GenerativeModel) or isinstance(self._model, GeminiWrapper):
+            if self.is_gemini_model():
                 formatted_chat_history = chat_to_gemini_format(chat_history)
             else:
                 formatted_chat_history = deepcopy(chat_history)
@@ -214,7 +217,7 @@ class LLMModel:
     def update_system_instruction(self, new_instruction: str) -> None:
         self._system_instruction = new_instruction
 
-        if isinstance(self._model, genai.GenerativeModel):
+        if self.is_gemini_model():
             # Recreate Gemini model with new system instruction (Gemini doesn't allow hot update)
             self._model = initialize_gemini_model(
                 model_name=self._model.model_name,
