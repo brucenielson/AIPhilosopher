@@ -23,16 +23,25 @@ class RAGChatInterface:
     ):
         self._title: str = title
         self._system_instructions: str = system_instructions
+        self._secret_token = secret_token
+        self._mode_name: str
+        self._config = config or {}
+        self._generation_kwargs = generation_kwargs
+        self._model: Optional[LLMModel] = None
         if isinstance(model_or_model_name, str):
-            self._model: LLMModel = LLMModel(model_or_name=model_or_model_name,
-                                             system_instruction=system_instructions,
-                                             secret_token=secret_token,
-                                             config=config,
-                                             **generation_kwargs)
+            self._model_name = model_or_model_name
+            if self._secret_token:
+                # If we have a password, we are ready to instantiate the model
+                self._model: LLMModel = LLMModel(model_or_name=self._model_name,
+                                                 system_instruction=self._system_instructions,
+                                                 secret_token=self._secret_token,
+                                                 config=self._config,
+                                                 **self._generation_kwargs)
         elif isinstance(model_or_model_name, LLMModel):
             self._model: LLMModel = model_or_model_name
+            self._model_name = self._model.model_name
         else:
-            raise ValueError("model_or_model_name must be either a string or an instance of LLMModel.")
+            raise ValueError("model_or_model_name must be a string or an instance of LLMModel")
 
         self._rag_chat: Optional[RagChat] = None
         self._config_data: dict = {}
@@ -40,6 +49,7 @@ class RAGChatInterface:
         self._retriever_top_k_docs: int = retriever_top_k_docs
 
     def load_config_data(self) -> dict[str, str]:
+        needs_model_password: bool = True
         model_password: str = ""
         postgres_password: str = ""
         postgres_user_name: str = "postgres"
@@ -54,21 +64,32 @@ class RAGChatInterface:
             with open("config.txt", "r") as f:
                 lines = f.readlines()
                 if len(lines) >= 9:
-                    model_password = lines[0].strip()
-                    postgres_password = lines[1].strip()
-                    postgres_user_name = lines[2].strip()
-                    postgres_db_name = lines[3].strip()
-                    postgres_table_name = lines[4].strip()
-                    postgres_host = lines[5].strip()
-                    postgres_port = int(lines[6].strip())
-                    title = lines[7].strip()
-                    system_instructions = lines[8].strip()
+                    needs_model_password = bool(lines[0].strip())
+                    model_password = lines[1].strip()
+                    postgres_password = lines[2].strip()
+                    postgres_user_name = lines[3].strip()
+                    postgres_db_name = lines[4].strip()
+                    postgres_table_name = lines[5].strip()
+                    postgres_host = lines[6].strip()
+                    postgres_port = int(lines[7].strip())
+                    title = lines[8].strip()
+                    system_instructions = lines[9].strip()
 
-        # Login to Google Gemini if a password is provided
-        if model_password and not self._model.has_secret_token:
+        # Login to Google Gemini if a password is provided and this is the first time or it changed
+        if (needs_model_password and
+                (model_password and self._model and not self._model.has_secret_token) or
+                (self._model and self._model.has_token_changed(model_password))):
+            if not self._model:
+                self._model = LLMModel(model_or_name=self._model_name,
+                                       system_instruction=self._system_instructions,
+                                       secret_token=model_password,
+                                       config=self._config,
+                                       **self._generation_kwargs)
             self._model.login(model_password)
+            self._secret_token = model_password
 
         return {
+            "needs_model_password": needs_model_password,
             "model_password": model_password,
             "postgres_password": postgres_password,
             "postgres_user_name": postgres_user_name,
@@ -155,10 +176,14 @@ class RAGChatInterface:
                             label="System Instructions", placeholder="Enter your system instructions here",
                             value=config_data["system_instructions"], interactive=True,
                         )
-                    gr.Markdown("### API Keys")
+                    gr.Markdown("### Model Secret")
                     with gr.Group():
-                        google_secret_tb = gr.Textbox(
-                            label="Gemini API Key", placeholder="Enter your Gemini API key here",
+                        model_secret_cb = gr.Checkbox(
+                            label="Model needs password", value=True, interactive=True
+                        )
+                        model_secret_tb = gr.Textbox(
+                            label="Model Secret", placeholder="Enter your model secret "
+                                                              "(e.g. Gemini API key or Hugging Face key) here",
                             value=config_data["model_password"], type="password", interactive=True,
                         )
                     gr.Markdown("### Postgres Settings")
@@ -193,7 +218,8 @@ class RAGChatInterface:
             "save_settings": save_settings,
             "chat_title_tb": chat_title_tb,
             "sys_inst_box_tb": sys_inst_box_tb,
-            "google_secret_tb": google_secret_tb,
+            "model_secret_cb": model_secret_cb,
+            "model_secret_tb": model_secret_tb,
             "postgres_secret_tb": postgres_secret_tb,
             "postgres_user_tb": postgres_user_tb,
             "postgres_db_tb": postgres_db_tb,
@@ -211,6 +237,14 @@ class RAGChatInterface:
 
         if config_data["model_password"] and config_data["postgres_password"] and self._rag_chat is None:
             try:
+                if not self._model:
+                    self._model: LLMModel = LLMModel(model_or_name=self._model_name,
+                                                     system_instruction=self._system_instructions,
+                                                     secret_token=config_data["model_password"],
+                                                     config=self._config,
+                                                     **self._generation_kwargs)
+                    self._secret_token = config_data["model_password"]
+
                 self._rag_chat = RagChat(
                     self._model,
                     postgres_password=config_data["postgres_password"],
@@ -236,6 +270,7 @@ class RAGChatInterface:
         return (
             gr.update(value=self._config_data["title"]),
             gr.update(value=self._config_data["system_instructions"]),
+            gr.update(value=self._config_data["needs_model_password"] != ""),
             gr.update(value=self._config_data["model_password"]),
             gr.update(value=self._config_data["postgres_password"]),
             gr.update(value=self._config_data["postgres_user_name"]),
@@ -272,6 +307,7 @@ class RAGChatInterface:
         return []
 
     def update_config(self,
+                      needs_model_password_param,
                       model_password_param,
                       postgres_password_param,
                       postgres_user_name_param,
@@ -282,6 +318,7 @@ class RAGChatInterface:
                       title_param,
                       system_instructions_param):
         with open("config.txt", "w") as file:
+            file.write(f"{bool(needs_model_password_param)}\n")
             file.write(f"{model_password_param}\n")
             file.write(f"{postgres_password_param}\n")
             file.write(f"{postgres_user_name_param}\n")
@@ -350,7 +387,8 @@ class RAGChatInterface:
             save_settings = config_components["save_settings"]
             chat_title_tb = config_components["chat_title_tb"]
             sys_inst_box_tb = config_components["sys_inst_box_tb"]
-            google_secret_tb = config_components["google_secret_tb"]
+            model_secret_cb = config_components["model_secret_cb"]
+            model_secret_tb = config_components["model_secret_tb"]
             postgres_secret_tb = config_components["postgres_secret_tb"]
             postgres_user_tb = config_components["postgres_user_tb"]
             postgres_db_tb = config_components["postgres_db_tb"]
@@ -362,7 +400,7 @@ class RAGChatInterface:
             chat_interface.load(
                 self.load_event,
                 outputs=[
-                    chat_title_tb, sys_inst_box_tb, google_secret_tb, postgres_secret_tb,
+                    chat_title_tb, sys_inst_box_tb, model_secret_cb, model_secret_tb, postgres_secret_tb,
                     postgres_user_tb, postgres_db_tb, postgres_table_tb, postgres_host_tb,
                     postgres_port_tb, chat_tab, load_tab, tabs
                 ]
@@ -379,12 +417,12 @@ class RAGChatInterface:
             save_settings.click(
                 self.update_config,
                 inputs=[
-                    google_secret_tb, postgres_secret_tb, postgres_user_tb, postgres_db_tb,
+                    model_secret_cb, model_secret_tb, postgres_secret_tb, postgres_user_tb, postgres_db_tb,
                     postgres_table_tb, postgres_host_tb, postgres_port_tb, chat_title_tb,
                     sys_inst_box_tb
                 ],
                 outputs=[
-                    google_secret_tb, postgres_secret_tb, postgres_user_tb, postgres_db_tb,
+                    model_secret_tb, postgres_secret_tb, postgres_user_tb, postgres_db_tb,
                     postgres_table_tb, postgres_host_tb, postgres_port_tb, chat_title_tb,
                     sys_inst_box_tb, title_md, chat_tab, load_tab,
                 ],

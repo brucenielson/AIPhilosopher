@@ -128,7 +128,10 @@ class LLMModel:
 
     @property
     def has_secret_token(self) -> bool:
-        return self._password is not None and len(self._password) > 0
+        return self._model and self._password is not None and len(self._password) > 0
+
+    def has_token_changed(self, new_token: str) -> bool:
+        return self._password != new_token
 
     # @staticmethod
     # def normalize_response(response):
