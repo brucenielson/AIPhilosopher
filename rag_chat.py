@@ -8,7 +8,7 @@ from haystack_pipelines.doc_retrieval_pipeline import DocRetrievalPipeline, Sear
 from haystack_pipelines.document_processor import DocumentProcessor
 # noinspection PyPackageRequirements
 from haystack import Document
-from typing import Optional, List, Iterator, Union, Tuple, Generator
+from typing import Optional, List, Iterator, Union, Tuple, Generator, Self
 from react_agent import format_document, ReActAgent
 from models.llm_model import LLMModel
 
@@ -24,8 +24,7 @@ class RagChat:
                  postgres_host: str = 'localhost',
                  postgres_port: int = 5432,
                  postgres_table_recreate: bool = False,
-                 postgres_table_embedder_model_name: str = "BAAI/llm-embedder",
-                 system_instruction: Optional[str] = None,
+                 embedder_model_name: str = "BAAI/llm-embedder",
                  llm_top_k: int = 5,
                  retriever_top_k_docs: int = 100) -> None:
 
@@ -33,9 +32,6 @@ class RagChat:
         self._model: LLMModel = model
         self._llm_top_k: int = llm_top_k
         self._retriever_top_k_docs: int = retriever_top_k_docs
-        self._system_instruction: Optional[str] = system_instruction
-        if self._system_instruction is not None:
-            self._model.update_system_instruction(self._system_instruction)
 
         # Initialize the document retrieval pipeline with top-5 quote retrieval.
         self._postgres_password: str = postgres_password
@@ -43,7 +39,7 @@ class RagChat:
         self._postgres_db_name: str = postgres_db_name
         self._postgres_table_name: str = postgres_table_name
         self._postgres_table_recreate: bool = postgres_table_recreate
-        self._postgres_table_embedder_model_name: str = postgres_table_embedder_model_name
+        self._embedder_model_name: str = embedder_model_name
         self._postgres_host: str = postgres_host
         self._postgres_port: int = postgres_port
         # Initialize the document retrieval pipeline.
@@ -60,13 +56,60 @@ class RagChat:
             include_outputs_from=None,
             search_mode=SearchMode.HYBRID,
             use_reranker=True,
-            embedder_model_name=self._postgres_table_embedder_model_name,
+            embedder_model_name=self._embedder_model_name,
         )
         self._load_pipeline: Optional[DocumentProcessor] = None
 
+    def update_rag_chat(self,
+                        model: LLMModel,
+                        postgres_password: str,
+                        *,
+                        postgres_user_name: str,
+                        postgres_db_name: str,
+                        postgres_table_name: str,
+                        postgres_host: str,
+                        postgres_port: int,
+                        postgres_table_recreate: bool,
+                        postgres_table_embedder_model_name: str,
+                        system_instructions: Optional[str],
+                        embedder_model_name: str,
+                        llm_top_k: int,
+                        retriever_top_k_docs: int) -> Self:
+        # If any of the parameters have changed, update them and return a new instance.
+        if (self._model != model or
+                self._postgres_password != postgres_password or
+                self._postgres_user_name != postgres_user_name or
+                self._postgres_db_name != postgres_db_name or
+                self._postgres_table_name != postgres_table_name or
+                self._postgres_host != postgres_host or
+                self._postgres_port != postgres_port or
+                self._postgres_table_recreate != postgres_table_recreate or
+                self._embedder_model_name != postgres_table_embedder_model_name or
+                self._embedder_model_name != embedder_model_name or
+                self._llm_top_k != llm_top_k or
+                self._retriever_top_k_docs != retriever_top_k_docs):
+
+            return RagChat(
+                model=model,
+                postgres_password=postgres_password,
+                postgres_user_name=postgres_user_name,
+                postgres_db_name=postgres_db_name,
+                postgres_table_name=postgres_table_name,
+                postgres_host=postgres_host,
+                postgres_port=postgres_port,
+                postgres_table_recreate=postgres_table_recreate,
+                embedder_model_name=postgres_table_embedder_model_name,
+                llm_top_k=llm_top_k,
+                retriever_top_k_docs=retriever_top_k_docs
+            )
+        else:
+            return self
+
     def ask_llm_question(self, prompt: str,
                          chat_history: Optional[List[List[str]]] = None,
-                         stream: bool = False) -> Union[generation_types.GenerateContentResponse, Generator[str, None, None], str]:
+                         stream: bool = False) \
+            -> Union[generation_types.GenerateContentResponse, Generator[str, None, None], str]:
+
         if chat_history is None:
             chat_history = []
         # Start a new chat session with no history for this check.
@@ -171,15 +214,16 @@ class RagChat:
 
     def load_documents(self, files: List[str]) -> Iterator[None]:
         if self._load_pipeline is None:
+            # TODO: all these parameters should be configurable
             self._load_pipeline: DocumentProcessor = DocumentProcessor(
                 table_name=self._postgres_table_name,
                 recreate_table=False,
-                embedder_model_name="BAAI/llm-embedder",
+                embedder_model_name=self._embedder_model_name,
                 file_folder_path_or_list=files,
                 db_user_name=self._postgres_user_name,
                 db_password=self._postgres_password,
-                postgres_host='localhost',
-                postgres_port=5432,
+                postgres_host=self._postgres_host,
+                postgres_port=self._postgres_port,
                 db_name=self._postgres_db_name,
                 min_section_size=3000,
                 min_paragraph_size=300,

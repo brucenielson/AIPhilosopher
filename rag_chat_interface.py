@@ -2,7 +2,7 @@
 import os
 import time
 import gradio as gr
-from typing import Optional, Union, Any
+from typing import Optional, Union
 from rag_chat import RagChat
 from models.llm_model import LLMModel
 from utilities.general_utils import get_secret
@@ -12,94 +12,78 @@ class RAGChatInterface:
     def __init__(
         self,
         model_or_model_name: Union[LLMModel, str],
-        secret_token: Optional[str] = None,
-        title: str = "RAG Chat",
-        system_instructions: str = "You are a helpful assistant.",
+        default_title: str = "RAG Chat",
+        embeder_model_name: str = "BAAI/llm-embedder",
+        postgres_table_recreate: bool = False,
         llm_top_k: int = 5,
-        retriever_top_k_docs=100,
-        *,
-        config: Optional[dict] = None,
-        **generation_kwargs: Any
+        retriever_top_k_docs=100
     ):
-        self._title: str = title
-        self._system_instructions: str = system_instructions
-        self._secret_token = secret_token
-        self._mode_name: str
-        self._config = config or {}
-        self._generation_kwargs = generation_kwargs
-        self._model: Optional[LLMModel] = None
-        if isinstance(model_or_model_name, str):
-            self._model_name = model_or_model_name
-            if self._secret_token:
-                # If we have a password, we are ready to instantiate the model
-                self._model: LLMModel = LLMModel(model_or_name=self._model_name,
-                                                 system_instruction=self._system_instructions,
-                                                 secret_token=self._secret_token,
-                                                 config=self._config,
-                                                 **self._generation_kwargs)
-        elif isinstance(model_or_model_name, LLMModel):
-            self._model: LLMModel = model_or_model_name
-            self._model_name = self._model.model_name
-        else:
-            raise ValueError("model_or_model_name must be a string or an instance of LLMModel")
-
+        self._title: str = default_title
+        self._model_or_model_name: Union[LLMModel, str] = model_or_model_name
         self._rag_chat: Optional[RagChat] = None
         self._config_data: dict = {}
         self._llm_top_k: int = llm_top_k
         self._retriever_top_k_docs: int = retriever_top_k_docs
+        self._embeder_model_name: str = embeder_model_name
+        self._postgres_table_recreate: bool = postgres_table_recreate
 
-    def load_config_data(self) -> dict[str, str]:
-        needs_model_password: bool = True
-        model_password: str = ""
-        postgres_password: str = ""
-        postgres_user_name: str = "postgres"
-        postgres_db_name: str = "postgres"
-        postgres_table_name: str = "book_archive"
-        postgres_host: str = "localhost"
-        postgres_port: int = 5432
-        title: str = ""
-        system_instructions: str = ""
+    def init_or_update_rag_chat(self,
+                                model_password: Optional[str],
+                                postgres_password: str,
+                                *,
+                                postgres_user_name: str,
+                                postgres_db_name: str,
+                                postgres_table_name: str,
+                                postgres_host: str,
+                                postgres_port: int,
+                                postgres_table_recreate: bool,
+                                embedder_model_name: str,
+                                system_instructions: Optional[str],
+                                llm_top_k: int,
+                                retriever_top_k_docs: int) -> None:
 
-        if os.path.exists("config.txt"):
-            with open("config.txt", "r") as f:
-                lines = f.readlines()
-                if len(lines) >= 9:
-                    needs_model_password = bool(lines[0].strip())
-                    model_password = lines[1].strip()
-                    postgres_password = lines[2].strip()
-                    postgres_user_name = lines[3].strip()
-                    postgres_db_name = lines[4].strip()
-                    postgres_table_name = lines[5].strip()
-                    postgres_host = lines[6].strip()
-                    postgres_port = int(lines[7].strip())
-                    title = lines[8].strip()
-                    system_instructions = lines[9].strip()
+        try:
+            model: LLMModel
+            if isinstance(self._model_or_model_name, str):
+                model = LLMModel(model_or_name=self._model_or_model_name,
+                                 system_instruction=system_instructions,
+                                 secret_token=model_password)
+            else:
+                model = self._model_or_model_name
 
-        # Login to Google Gemini if a password is provided and this is the first time or it changed
-        if (needs_model_password and
-                (model_password and self._model and not self._model.has_secret_token) or
-                (self._model and self._model.has_token_changed(model_password))):
-            if not self._model:
-                self._model = LLMModel(model_or_name=self._model_name,
-                                       system_instruction=self._system_instructions,
-                                       secret_token=model_password,
-                                       config=self._config,
-                                       **self._generation_kwargs)
-            self._model.login(model_password)
-            self._secret_token = model_password
+            if self._rag_chat is None:
+                self._rag_chat = RagChat(
+                    model,
+                    postgres_password=postgres_password,
+                    postgres_user_name=postgres_user_name,
+                    postgres_db_name=postgres_db_name,
+                    postgres_table_name=postgres_table_name,
+                    postgres_host=postgres_host,
+                    postgres_port=int(postgres_port),
+                    llm_top_k=llm_top_k,
+                    retriever_top_k_docs=retriever_top_k_docs,
+                    embedder_model_name=embedder_model_name,
+                    postgres_table_recreate=postgres_table_recreate,
+                )
+            else:
+                self._rag_chat = self._rag_chat.update_rag_chat(
+                    model=model,
+                    postgres_password=postgres_password,
+                    postgres_user_name=postgres_user_name,
+                    postgres_db_name=postgres_db_name,
+                    postgres_table_name=postgres_table_name,
+                    postgres_host=postgres_host,
+                    postgres_port=int(postgres_port),
+                    system_instructions=system_instructions,
+                    llm_top_k=llm_top_k,
+                    retriever_top_k_docs=retriever_top_k_docs,
+                    embedder_model_name=embedder_model_name,
+                    postgres_table_recreate=postgres_table_recreate,
+                )
 
-        return {
-            "needs_model_password": needs_model_password,
-            "model_password": model_password,
-            "postgres_password": postgres_password,
-            "postgres_user_name": postgres_user_name,
-            "postgres_db_name": postgres_db_name,
-            "postgres_table_name": postgres_table_name,
-            "postgres_host": postgres_host,
-            "postgres_port": int(postgres_port),
-            "system_instructions": system_instructions,
-            "title": title,
-        }
+        except Exception as e:
+            print(f"Error loading RagChat: {e}")
+            self._rag_chat = None
 
     @staticmethod
     def build_chat_tab(title: str, default_tab: str) -> dict:
@@ -229,38 +213,25 @@ class RAGChatInterface:
         }
 
     def init_chat_config_tabs(self) -> tuple[Optional[RagChat], dict[str, str]]:
-        config_data = self.load_config_data()
+        config_data = load_config_data()
         if not config_data["title"]:
             config_data["title"] = self._title
-        if not config_data["system_instructions"]:
-            config_data["system_instructions"] = self._system_instructions
 
         if config_data["model_password"] and config_data["postgres_password"] and self._rag_chat is None:
-            try:
-                if not self._model:
-                    self._model: LLMModel = LLMModel(model_or_name=self._model_name,
-                                                     system_instruction=self._system_instructions,
-                                                     secret_token=config_data["model_password"],
-                                                     config=self._config,
-                                                     **self._generation_kwargs)
-                    self._secret_token = config_data["model_password"]
-
-                self._rag_chat = RagChat(
-                    self._model,
-                    postgres_password=config_data["postgres_password"],
-                    postgres_user_name=config_data["postgres_user_name"],
-                    postgres_db_name=config_data["postgres_db_name"],
-                    postgres_table_name=config_data["postgres_table_name"],
-                    postgres_host=config_data["postgres_host"],
-                    postgres_port=int(config_data["postgres_port"]),
-                    system_instruction=config_data["system_instructions"],
-                    llm_top_k=self._llm_top_k,
-                    retriever_top_k_docs=self._retriever_top_k_docs,
-                )
-
-            except Exception as e:
-                print(f"Error loading RagChat: {e}")
-                self._rag_chat = None
+            self.init_or_update_rag_chat(
+                model_password=config_data["model_password"] if config_data["needs_model_password"] else None,
+                postgres_password=config_data["postgres_password"],
+                postgres_user_name=config_data["postgres_user_name"],
+                postgres_db_name=config_data["postgres_db_name"],
+                postgres_table_name=config_data["postgres_table_name"],
+                postgres_host=config_data["postgres_host"],
+                postgres_port=int(config_data["postgres_port"]),
+                postgres_table_recreate=False,
+                embedder_model_name=self._embeder_model_name,
+                llm_top_k=self._llm_top_k,
+                retriever_top_k_docs=self._retriever_top_k_docs,
+                system_instructions=config_data["system_instructions"]
+            )
 
         return self._rag_chat, config_data
 
@@ -329,18 +300,19 @@ class RAGChatInterface:
             file.write(f"{title_param}\n")
             file.write(f"{system_instructions_param}\n")
 
-        # Reinitialize RagChat with new settings
-        self._rag_chat = RagChat(
-            self._model,
+        self.init_or_update_rag_chat(
+            model_password=model_password_param if needs_model_password_param else None,
             postgres_password=postgres_password_param,
             postgres_user_name=postgres_user_name_param,
             postgres_db_name=postgres_db_name_param,
             postgres_table_name=postgres_table_name_param,
             postgres_host=postgres_host_param,
             postgres_port=int(postgres_port_param),
-            system_instruction=system_instructions_param,
+            postgres_table_recreate=self._postgres_table_recreate,
+            embedder_model_name=self._embeder_model_name,
+            system_instructions=system_instructions_param,
             llm_top_k=self._llm_top_k,
-            retriever_top_k_docs=self._retriever_top_k_docs,
+            retriever_top_k_docs=self._retriever_top_k_docs
         )
 
         return (
@@ -432,18 +404,59 @@ class RAGChatInterface:
         return chat_interface
 
 
+def load_config_data() -> dict[str, str]:
+    needs_model_password: bool = True
+    model_password: str = ""
+    postgres_password: str = ""
+    postgres_user_name: str = "postgres"
+    postgres_db_name: str = "postgres"
+    postgres_table_name: str = "book_archive"
+    postgres_host: str = "localhost"
+    postgres_port: int = 5432
+    title: str = ""
+    system_instructions: str = ""
+
+    if os.path.exists("config.txt"):
+        with open("config.txt", "r") as f:
+            lines = f.readlines()
+            if len(lines) >= 9:
+                needs_model_password = bool(lines[0].strip())
+                model_password = lines[1].strip()
+                postgres_password = lines[2].strip()
+                postgres_user_name = lines[3].strip()
+                postgres_db_name = lines[4].strip()
+                postgres_table_name = lines[5].strip()
+                postgres_host = lines[6].strip()
+                postgres_port = int(lines[7].strip())
+                title = lines[8].strip()
+                system_instructions = lines[9].strip()
+
+    return {
+        "needs_model_password": needs_model_password,
+        "model_password": model_password,
+        "postgres_password": postgres_password,
+        "postgres_user_name": postgres_user_name,
+        "postgres_db_name": postgres_db_name,
+        "postgres_table_name": postgres_table_name,
+        "postgres_host": postgres_host,
+        "postgres_port": int(postgres_port),
+        "system_instructions": system_instructions,
+        "title": title,
+    }
+
+
 if __name__ == "__main__":
     sys_instruction = (
         "You are philosopher Karl Popper. Answer questions with philosophical insights, and use "
         "the provided quotes along with their metadata as reference."
     )
     # llm_client = LLMModel(model_or_name="gemini-2.0-flash", "google/gemma-2-2b-it", "google/gemma-3-270m"
-    # system_instruction=sys_instruction)
+    # system_instructions=sys_instruction)
     google_secret: str = get_secret(r'D:\Documents\Secrets\gemini_secret.txt')  # Put your path here # noqa: F841
-    # llm_client = LLMModel("google/gemma-3-270m", system_instruction="You are concise.", secret_token=None)
+    # llm_client = LLMModel("google/gemma-3-270m", system_instructions="You are concise.", secret_token=None)
     app = RAGChatInterface(
-        model_or_model_name="google/gemma-3-270m",
-        title="Karl Popper Chatbot",
+        model_or_model_name="gemini-2.0-flash",
+        default_title="AI Philosopher",
         llm_top_k=3,
         retriever_top_k_docs=10,
     )

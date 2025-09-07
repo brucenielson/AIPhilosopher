@@ -35,6 +35,7 @@ from docling.document_converter import DocumentConverter, ConversionResult
 from docling_core.types import DoclingDocument
 from docling_parser import DoclingParser
 # noinspection PyPackageRequirements
+# TODO: This reranker is considered legacy. Replace with a more modern one.
 from haystack.components.rankers import TransformersSimilarityRanker
 # noinspection PyPackageRequirements
 from haystack.utils import ComponentDevice, Device

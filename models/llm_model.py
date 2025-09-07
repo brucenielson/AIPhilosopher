@@ -13,6 +13,7 @@ from models.gemini_utils import (initialize_gemini_model,
                                  )
 from models.gemini_compatibility import MinGeminiCompatible, GeminiWrapper
 from types import GeneratorType
+import huggingface_hub
 
 
 class LLMModel:
@@ -39,6 +40,8 @@ class LLMModel:
         """
 
         self._model: Union[genai.GenerativeModel, MinGeminiCompatible, Any]
+        self._secret_token: Optional[str] = secret_token
+        self._is_logged_in: bool = False
         if isinstance(model_or_name, genai.GenerativeModel):
             # If an existing Gemini model wrap it with our interface
             self._model = GeminiWrapper(model_or_name)
@@ -50,18 +53,28 @@ class LLMModel:
             # If model name contains a '/' this is a Hugging Face model
             if "/" in model_or_name:
                 # initialize HF wrapper
-                self._model = HFModelWrapper(model_or_name,
-                                             system_instruction=system_instruction,
-                                             hf_token=secret_token)
+                try:
+                    self._model = HFModelWrapper(model_or_name,
+                                                 system_instruction=system_instruction,
+                                                 hf_token=secret_token)
+                    if secret_token is not None:
+                        self._is_logged_in = True
+                except Exception as e:
+                    raise RuntimeError(f"Failed to initialize Hugging Face model '{model_or_name}': {e}")
             elif model_or_name in get_gemini_models(secret_token=secret_token):
                 # If a Gemini model name is provided, initialize the Gemini model.
-                model: GeminiWrapper = initialize_gemini_model(
-                    model_name=model_or_name,
-                    system_instruction=system_instruction,
-                    google_secret=secret_token,
-                    include_wrapper=True,
-                )
-                self._model = model
+                try:
+                    model: GeminiWrapper = initialize_gemini_model(
+                        model_name=model_or_name,
+                        system_instruction=system_instruction,
+                        google_secret=secret_token,
+                        include_wrapper=True,
+                    )
+                    self._model = model
+                    if secret_token is not None:
+                        self._is_logged_in = True
+                except Exception as e:
+                    raise RuntimeError(f"Failed to initialize Gemini model '{model_or_name}': {e}")
             else:
                 raise ValueError(f"Invalid model name: {model_or_name}."
                                  f"Valid Gemini models are: {', '.join(get_gemini_models())}.")
@@ -73,14 +86,6 @@ class LLMModel:
         self._system_instruction: Optional[str] = system_instruction
         self._tools: List[Tool] = tools if tools is not None else []
         self._config: Dict[str, Any] = {}
-        # Handle login
-        self._password: Optional[str] = None
-        if secret_token:
-            self.login(secret_token)
-
-        if secret_token and self._is_gemini_model():
-            # Login to the Gemini API using the provided secret_token.
-            genai.configure(api_key=secret_token)
 
         if not config and generation_kwargs:
             # Set up the config with any provided generation parameters
@@ -90,25 +95,23 @@ class LLMModel:
     def _is_gemini_model(self) -> bool:
         return isinstance(self._model, genai.GenerativeModel) or isinstance(self._model, GeminiWrapper)
 
-    def login(self, password: str):
+    def login(self, secret_token: str):
         if self.has_secret_token:
             # Already logged in
             return
 
         if self._is_gemini_model():
             try:
-                genai.configure(api_key=password)
-                self._password = password
+                genai.configure(api_key=secret_token)
+                self._secret_token = secret_token
+                self._is_logged_in = True
             except Exception as e:
                 raise RuntimeError(f"Failed to configure Gemini API with provided token: {e}")
         elif isinstance(self._model, HFModelWrapper):
             try:
-                # For HF, store token and re-create pipeline if desired.
-                # NOTE: pipeline re-creation might be necessary depending on auth scope.
-                self._model = HFModelWrapper(self._model.model_name,
-                                             system_instruction=self._model.system_instruction,
-                                             hf_token=password)
-                self._password = password
+                huggingface_hub.login(token=secret_token)
+                self._secret_token = secret_token
+                self._is_logged_in = True
             except Exception as e:
                 raise RuntimeError(f"Failed to authenticate Hugging Face model with provided token: {e}")
         else:
