@@ -39,9 +39,30 @@ class LLMModel:
             **generation_kwargs: Additional generation parameters to override defaults in config.
         """
 
-        self._model: Union[genai.GenerativeModel, MinGeminiCompatible, Any]
+        self._model: Optional[Union[genai.GenerativeModel, MinGeminiCompatible, Any]] = None
         self._secret_token: Optional[str] = secret_token
+        self._model_name: str
+        if isinstance(model_or_name, str):
+            self._model_name = model_or_name
+        elif isinstance(model_or_name, (genai.GenerativeModel, MinGeminiCompatible)):
+            try:
+                self._model_name = model_or_name.model_name
+            except AttributeError:
+                self._model_name = "unknown-model"
         self._is_logged_in: bool = False
+        self._chat_session: Optional[Any] = None
+        self._system_instruction: Optional[str] = system_instruction
+        self._tools: List[Tool] = tools if tools is not None else []
+        # Handle config and generation_kwargs
+        self._config: Dict[str, Any] = {}
+        if not config and generation_kwargs:
+            # Set up the config with any provided generation parameters
+            config = dict(generation_kwargs)
+        self._config = config
+        # Attempt login if a secret token is provided
+        if secret_token is not None:
+            self.attempt_login(secret_token)
+        # Instance the model or wrap it, if not already done
         if isinstance(model_or_name, genai.GenerativeModel):
             # If an existing Gemini model wrap it with our interface
             self._model = GeminiWrapper(model_or_name)
@@ -50,18 +71,7 @@ class LLMModel:
             self._model = model_or_name
         # String identifier cases
         elif isinstance(model_or_name, str):
-            # If model name contains a '/' this is a Hugging Face model
-            if "/" in model_or_name:
-                # initialize HF wrapper
-                try:
-                    self._model = HFModelWrapper(model_or_name,
-                                                 system_instruction=system_instruction,
-                                                 hf_token=secret_token)
-                    if secret_token is not None:
-                        self._is_logged_in = True
-                except Exception as e:
-                    raise RuntimeError(f"Failed to initialize Hugging Face model '{model_or_name}': {e}")
-            elif model_or_name in get_gemini_models(secret_token=secret_token):
+            if self.is_google_model():
                 # If a Gemini model name is provided, initialize the Gemini model.
                 try:
                     model: GeminiWrapper = initialize_gemini_model(
@@ -71,10 +81,15 @@ class LLMModel:
                         include_wrapper=True,
                     )
                     self._model = model
-                    if secret_token is not None:
-                        self._is_logged_in = True
                 except Exception as e:
                     raise RuntimeError(f"Failed to initialize Gemini model '{model_or_name}': {e}")
+            elif self.is_hugging_face_model():
+                try:
+                    self._model = HFModelWrapper(model_or_name,
+                                                 system_instruction=system_instruction,
+                                                 hf_token=secret_token)
+                except Exception as e:
+                    raise RuntimeError(f"Failed to initialize Hugging Face model '{model_or_name}': {e}")
             else:
                 raise ValueError(f"Invalid model name: {model_or_name}."
                                  f"Valid Gemini models are: {', '.join(get_gemini_models())}.")
@@ -82,38 +97,49 @@ class LLMModel:
             print("Warning: model_or_name is not a recognized type. Attempting to use it as-is.")
             self._model = model_or_name
 
-        self._chat_session: Optional[Any] = None
-        self._system_instruction: Optional[str] = system_instruction
-        self._tools: List[Tool] = tools if tools is not None else []
-        self._config: Dict[str, Any] = {}
+    def is_google_model(self) -> bool:
+        if isinstance(self._model, (genai.GenerativeModel, GeminiWrapper)):
+            # We know for sure it's a Gemini model
+            return True
+        elif (isinstance(self._model_name, str)
+              and ('gemini' in self._model_name or 'gemma' in self._model_name)
+              and not self._model_name.startswith("google/")):
+            # Gemini or Gemma in the name but no 'google/' prefix (which is used by HF)
+            return True
+        elif self._is_logged_in and isinstance(self._model_name, str):
+            # If logged in, check if the model name is in the list of Gemini models
+            return self._model_name in get_gemini_models()
+        return False
 
-        if not config and generation_kwargs:
-            # Set up the config with any provided generation parameters
-            config = dict(generation_kwargs)
-        self._config = config
+    def is_hugging_face_model(self) -> bool:
+        if isinstance(self._model, HFModelWrapper):
+            # We know for sure it is a Hugging Face model
+            return True
+        elif isinstance(self._model_name, str):
+            if (
+                    "/" in self._model_name
+                    and not self._model_name.startswith("models/")
+                    and self._model_name not in get_gemini_models()
+            ):
+                # Hugging Face models have a 'organization/model' format that doesn't start with 'models/' like Gemini
+                return True
+        return False
 
-    def _is_gemini_model(self) -> bool:
-        return isinstance(self._model, genai.GenerativeModel) or isinstance(self._model, GeminiWrapper)
-
-    def login(self, secret_token: str):
-        if self.has_secret_token:
-            # Already logged in
-            return
-
-        if self._is_gemini_model():
+    def attempt_login(self, secret_token: str):
+        if self.is_google_model():
             try:
                 genai.configure(api_key=secret_token)
                 self._secret_token = secret_token
                 self._is_logged_in = True
             except Exception as e:
-                raise RuntimeError(f"Failed to configure Gemini API with provided token: {e}")
-        elif isinstance(self._model, HFModelWrapper):
+                print(f"Failed to configure Gemini API with provided token: {e}")
+        elif self.is_hugging_face_model():
             try:
                 huggingface_hub.login(token=secret_token)
                 self._secret_token = secret_token
                 self._is_logged_in = True
             except Exception as e:
-                raise RuntimeError(f"Failed to authenticate Hugging Face model with provided token: {e}")
+                print(f"Failed to authenticate Hugging Face model with provided token: {e}")
         else:
             raise TypeError("Underlying model does not support login with a password/token.")
 
@@ -131,10 +157,10 @@ class LLMModel:
 
     @property
     def has_secret_token(self) -> bool:
-        return self._model and self._password is not None and len(self._password) > 0
+        return self._model and self._secret_token is not None and len(self._secret_token) > 0
 
     def has_token_changed(self, new_token: str) -> bool:
-        return self._password != new_token
+        return self._secret_token != new_token
 
     # @staticmethod
     # def normalize_response(response):
@@ -192,7 +218,7 @@ class LLMModel:
 
         formatted_chat_history: Optional[Union[List[Dict[str, Any]], List[List[str]]]] = None
         if chat_history is not None:
-            if self._is_gemini_model():
+            if self.is_google_model():
                 formatted_chat_history = chat_to_gemini_format(chat_history)
             else:
                 formatted_chat_history = deepcopy(chat_history)
@@ -226,12 +252,12 @@ class LLMModel:
     def update_system_instruction(self, new_instruction: str) -> None:
         self._system_instruction = new_instruction
 
-        if self._is_gemini_model():
+        if self.is_google_model():
             # Recreate Gemini model with new system instruction (Gemini doesn't allow hot update)
             self._model = initialize_gemini_model(
                 model_name=self._model.model_name,
                 system_instruction=new_instruction,
-                google_secret=self._password
+                google_secret=self._secret_token
             )
 
         elif isinstance(self._model, HFModelWrapper):
