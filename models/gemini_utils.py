@@ -18,17 +18,26 @@ VALID_GEMINI_MODELS = [
     "gemma-3-8b-it-v2"
 ]
 
+# module-level cache
+_gemini_models_cache: List[str] | None = None
 
-def get_gemini_models(secret_token: Optional[str] = None) -> List[str]:
+
+def get_gemini_models(secret_token: Optional[str] = None, use_cache: bool = True) -> List[str]:
+    global _gemini_models_cache
+
+    if use_cache and _gemini_models_cache is not None:
+        return _gemini_models_cache
     try:
         if secret_token:
             genai.configure(api_key=secret_token)
 
-        return [
+        model_list: List[str] = [
             name
             for model in genai.list_models()
             for name in (model.name, model.name.removeprefix("models/"))
         ]
+        _gemini_models_cache = model_list
+        return model_list
     except DefaultCredentialsError:
         return VALID_GEMINI_MODELS
 

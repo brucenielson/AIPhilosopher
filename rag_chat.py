@@ -70,7 +70,6 @@ class RagChat:
                         postgres_host: str,
                         postgres_port: int,
                         postgres_table_recreate: bool,
-                        postgres_table_embedder_model_name: str,
                         system_instructions: Optional[str],
                         embedder_model_name: str,
                         llm_top_k: int,
@@ -84,7 +83,6 @@ class RagChat:
                 self._postgres_host != postgres_host or
                 self._postgres_port != postgres_port or
                 self._postgres_table_recreate != postgres_table_recreate or
-                self._embedder_model_name != postgres_table_embedder_model_name or
                 self._embedder_model_name != embedder_model_name or
                 self._llm_top_k != llm_top_k or
                 self._retriever_top_k_docs != retriever_top_k_docs):
@@ -98,7 +96,7 @@ class RagChat:
                 postgres_host=postgres_host,
                 postgres_port=postgres_port,
                 postgres_table_recreate=postgres_table_recreate,
-                embedder_model_name=postgres_table_embedder_model_name,
+                embedder_model_name=embedder_model_name,
                 llm_top_k=llm_top_k,
                 retriever_top_k_docs=retriever_top_k_docs
             )
