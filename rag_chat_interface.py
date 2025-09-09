@@ -31,6 +31,7 @@ class RAGChatInterface:
                                 model_password: Optional[str],
                                 postgres_password: str,
                                 *,
+                                stream: bool = False,
                                 postgres_user_name: str,
                                 postgres_db_name: str,
                                 postgres_table_name: str,
@@ -64,6 +65,7 @@ class RAGChatInterface:
                     retriever_top_k_docs=retriever_top_k_docs,
                     embedder_model_name=embedder_model_name,
                     postgres_table_recreate=postgres_table_recreate,
+                    stream=stream,
                 )
             else:
                 self._rag_chat = self._rag_chat.update_rag_chat(
@@ -79,6 +81,7 @@ class RAGChatInterface:
                     retriever_top_k_docs=retriever_top_k_docs,
                     embedder_model_name=embedder_model_name,
                     postgres_table_recreate=postgres_table_recreate,
+                    stream=stream,
                 )
 
         except Exception as e:
@@ -230,7 +233,8 @@ class RAGChatInterface:
                 embedder_model_name=self._embeder_model_name,
                 llm_top_k=self._llm_top_k,
                 retriever_top_k_docs=self._retriever_top_k_docs,
-                system_instructions=config_data["system_instructions"]
+                system_instructions=config_data["system_instructions"],
+                stream=True,
             )
 
         return self._rag_chat, config_data
@@ -312,7 +316,8 @@ class RAGChatInterface:
             embedder_model_name=self._embeder_model_name,
             system_instructions=system_instructions_param,
             llm_top_k=self._llm_top_k,
-            retriever_top_k_docs=self._retriever_top_k_docs
+            retriever_top_k_docs=self._retriever_top_k_docs,
+            stream=True,
         )
 
         return (

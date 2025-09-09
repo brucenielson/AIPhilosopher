@@ -18,6 +18,7 @@ class RagChat:
                  model: LLMModel,
                  postgres_password: str,
                  *,
+                 stream: bool = False,
                  postgres_user_name: str = "postgres",
                  postgres_db_name: str = "postgres",
                  postgres_table_name: str = "popper_archive",
@@ -32,6 +33,7 @@ class RagChat:
         self._model: LLMModel = model
         self._llm_top_k: int = llm_top_k
         self._retriever_top_k_docs: int = retriever_top_k_docs
+        self._stream: bool = stream
 
         # Initialize the document retrieval pipeline with top-5 quote retrieval.
         self._postgres_password: str = postgres_password
@@ -336,7 +338,7 @@ class RagChat:
 
         # We start a new chat session each time so that we can control the chat history and remove all the rag docs
         # Send the modified query to Gemini.
-        chat_response = self.ask_llm_question(modified_query, chat_history=chat_history, stream=True)
+        chat_response = self.ask_llm_question(modified_query, chat_history=chat_history, stream=self._stream)
         answer_text = ""
 
         if not (isinstance(chat_response, GenerateContentResponse) or isinstance(chat_response, Generator)):
