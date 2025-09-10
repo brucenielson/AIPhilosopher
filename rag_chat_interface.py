@@ -11,7 +11,7 @@ from utilities.general_utils import get_secret
 class RAGChatInterface:
     def __init__(
         self,
-        model_or_model_name: Union[LLMModel, str],
+        model_or_name: Union[LLMModel, str],
         default_title: str = "RAG Chat",
         embeder_model_name: str = "BAAI/llm-embedder",
         postgres_table_recreate: bool = False,
@@ -19,7 +19,7 @@ class RAGChatInterface:
         retriever_top_k_docs=100
     ):
         self._title: str = default_title
-        self._model_or_model_name: Union[LLMModel, str] = model_or_model_name
+        self._model_or_model_name: Union[LLMModel, str] = model_or_name
         self._rag_chat: Optional[RagChat] = None
         self._config_data: dict = {}
         self._llm_top_k: int = llm_top_k
@@ -31,7 +31,6 @@ class RAGChatInterface:
                                 model_password: Optional[str],
                                 postgres_password: str,
                                 *,
-                                stream: bool = False,
                                 postgres_user_name: str,
                                 postgres_db_name: str,
                                 postgres_table_name: str,
@@ -65,7 +64,6 @@ class RAGChatInterface:
                     retriever_top_k_docs=retriever_top_k_docs,
                     embedder_model_name=embedder_model_name,
                     postgres_table_recreate=postgres_table_recreate,
-                    stream=stream,
                 )
             else:
                 self._rag_chat = self._rag_chat.update_rag_chat(
@@ -81,7 +79,6 @@ class RAGChatInterface:
                     retriever_top_k_docs=retriever_top_k_docs,
                     embedder_model_name=embedder_model_name,
                     postgres_table_recreate=postgres_table_recreate,
-                    stream=stream,
                 )
 
         except Exception as e:
@@ -234,7 +231,6 @@ class RAGChatInterface:
                 llm_top_k=self._llm_top_k,
                 retriever_top_k_docs=self._retriever_top_k_docs,
                 system_instructions=config_data["system_instructions"],
-                stream=True,
             )
 
         return self._rag_chat, config_data
@@ -317,7 +313,6 @@ class RAGChatInterface:
             system_instructions=system_instructions_param,
             llm_top_k=self._llm_top_k,
             retriever_top_k_docs=self._retriever_top_k_docs,
-            stream=True,
         )
 
         return (
@@ -460,7 +455,7 @@ if __name__ == "__main__":
     google_secret: str = get_secret(r'D:\Documents\Secrets\gemini_secret.txt')  # Put your path here # noqa: F841
     # llm_client = LLMModel("google/gemma-3-270m", system_instructions="You are concise.", secret_token=None)
     app = RAGChatInterface(
-        model_or_model_name="google/gemma-3-270m",
+        model_or_name="gemini-2.0-flash",
         default_title="AI Philosopher",
         llm_top_k=3,
         retriever_top_k_docs=10,

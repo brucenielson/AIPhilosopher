@@ -7,7 +7,7 @@ import time
 # noinspection PyPackageRequirements
 from google.api_core.exceptions import ResourceExhausted
 # noinspection PyPackageRequirements
-from google.genai.types import Content
+from google.genai.types import Content, Tool
 # noinspection PyPackageRequirements
 from google.generativeai.types import (
     content_types,
@@ -75,30 +75,121 @@ def retryable(max_retries: int = 5):
     return decorator
 
 
+# --- Normalizers ---
+def normalize_safety(safety: Union[Dict[str, Any], safety_types.SafetySettingOptions, None]
+) -> Dict[str, Any]:
+    if safety is None:
+        return {}
+    if isinstance(safety, dict):
+        return safety
+    if isinstance(safety, safety_types.SafetySettingOptions):
+        return safety_types.to_easy_safety_dict(safety)
+    return {"raw": safety}
+
+
+def normalize_config(cfg: Union[Dict[str, Any], generation_types.GenerationConfigType, None]
+) -> Dict[str, Any]:
+    if cfg is None:
+        return {}
+    if isinstance(cfg, dict):
+        return cfg
+    if isinstance(cfg, generation_types.GenerationConfigType):
+        return generation_types.to_generation_config_dict(cfg)
+    return {"raw": cfg}
+
+
+def normalize_tool_config(cfg: Union[Dict[str, Any], content_types.ToolConfigType, None]
+) -> Dict[str, Any]:
+    if cfg is None:
+        return {}
+    if isinstance(cfg, dict):
+        return cfg
+    if isinstance(cfg, content_types.ToolConfigType):
+        return cfg.to_dict()
+    return {"raw": cfg}
+
+
+def normalize_instruction(instr: Union[str, content_types.ContentType, None]
+) -> str:
+    if instr is None:
+        return ""
+    if isinstance(instr, str):
+        return instr
+    if isinstance(instr, content_types.ContentType):
+        return getattr(instr, "text", str(instr))
+    return str(instr)
+
+
+SafetySettingsLike = Dict[str, Any] | safety_types.SafetySettingOptions | None
+GenerationConfigLike = Dict[str, Any] | generation_types.GenerationConfigType | None
+ToolConfigLike = Dict[str, Any] | List[Tool] | content_types.ToolConfigType | None
+SystemInstructionLike = str | content_types.ContentType | None
+ToolsLike = Any | content_types.FunctionLibraryType | None
+
+
 # This class is not strictly necessary. LLMModel can use Gemini directly.
 # However, it is useful to have a minimal Gemini-like interface that other providers can implement.
 # This allows for easier switching between providers if needed.
 class MinGeminiCompatible(ABC):
     """
     Abstract Gemini-like interface that other providers must implement.
+    Accepts Gemini SDK types or plain dicts/strings, normalizes them internally.
     """
+    def __init__(
+        self,
+        model_or_name: Any | str,
+        safety_settings: SafetySettingsLike = None,
+        generation_config: GenerationConfigLike = None,
+        tools: ToolsLike = None,
+        tool_config: ToolConfigLike = None,
+        system_instruction: SystemInstructionLike = None,
+        secret_token: str | None = None,
+        normalize: bool = False,
+    ):
+        self._model: Any | None = None
+        if isinstance(model_or_name, str):
+            self._model_name = model_or_name
+        else:
+            self._model_name = getattr(model_or_name, "model_name", "anonymous-model")
+            self._model = model_or_name
 
-    def __init__(self, model: Any,
-                 model_name: Optional[str] = None,
-                 system_instruction: Optional[str] = None,
-                 secret_token: Optional[str] = None):
-        self._model: genai.GenerativeModel = model
-        self._model_name: str = model_name
-        self._system_instruction: str = system_instruction
-        self._secret_token: str = secret_token
+        self._secret_token: str | None = secret_token
+        self._tools: ToolsLike = tools
+
+        # normalize Gemini types → neutral Python dicts/strings
+        self._safety_settings: SafetySettingsLike
+        self._generation_config: GenerationConfigLike
+        self._tool_config: ToolConfigLike
+        self._system_instruction: SystemInstructionLike
+
+        self._safety_settings = normalize_safety(safety_settings) if normalize else safety_settings
+        self._generation_config = normalize_config(generation_config) if normalize else generation_config
+        self._tool_config = normalize_tool_config(tool_config) if normalize else tool_config
+        self._system_instruction = normalize_instruction(system_instruction) if normalize else system_instruction
 
     @property
     def model_name(self) -> str:
         return self._model_name
 
     @property
-    def system_instruction(self) -> Optional[str]:
+    def system_instruction(self) -> SystemInstructionLike:
         return self._system_instruction
+
+    @property
+    def generation_config(self) -> GenerationConfigLike:
+        return self._generation_config
+
+    @property
+    def safety_settings(self) -> SafetySettingsLike:
+        return self._safety_settings
+
+    @property
+    def tool_config(self) -> ToolConfigLike:
+        return self._tool_config
+
+    @property
+    def tools(self) -> ToolsLike:
+        return self._tools
 
     @abstractmethod
     def generate_content(self, contents: str, **kwargs) -> str:
@@ -194,11 +285,27 @@ class GeminiWrapper(MinGeminiCompatible):
     exposes the full underlying GenerativeModel API transparently.
     """
 
-    def __init__(self, model: genai.GenerativeModel):
-        super().__init__(model=model,
-                         model_name=model.model_name,
-                         system_instruction=None,
-                         secret_token=None)
+    def __init__(
+        self,
+        model: genai.GenerativeModel,
+        safety_settings: SafetySettingsLike = None,
+        generation_config: GenerationConfigLike = None,
+        tools: ToolsLike = None,
+        tool_config: ToolConfigLike = None,
+        system_instruction: SystemInstructionLike = None,
+        secret_token: str | None = None,
+        normalize: bool = False,
+    ):
+        super().__init__(
+            model_or_name=model,
+            safety_settings=safety_settings,
+            generation_config=generation_config,
+            tools=tools,
+            tool_config=tool_config,
+            system_instruction=system_instruction,
+            secret_token=secret_token,
+            normalize=normalize,
+        )
 
     @retryable(max_retries=5)
     def generate_content(

@@ -72,10 +72,10 @@ class RagChat:
                         postgres_host: str,
                         postgres_port: int,
                         postgres_table_recreate: bool,
-                        system_instructions: Optional[str],
                         embedder_model_name: str,
                         llm_top_k: int,
-                        retriever_top_k_docs: int) -> Self:
+                        retriever_top_k_docs: int,
+                        stream: bool = False) -> Self:
         # If any of the parameters have changed, update them and return a new instance.
         if (self._model != model or
                 self._postgres_password != postgres_password or
@@ -87,7 +87,8 @@ class RagChat:
                 self._postgres_table_recreate != postgres_table_recreate or
                 self._embedder_model_name != embedder_model_name or
                 self._llm_top_k != llm_top_k or
-                self._retriever_top_k_docs != retriever_top_k_docs):
+                self._retriever_top_k_docs != retriever_top_k_docs or
+                self._stream != stream):
 
             return RagChat(
                 model=model,
@@ -100,7 +101,8 @@ class RagChat:
                 postgres_table_recreate=postgres_table_recreate,
                 embedder_model_name=embedder_model_name,
                 llm_top_k=llm_top_k,
-                retriever_top_k_docs=retriever_top_k_docs
+                retriever_top_k_docs=retriever_top_k_docs,
+                stream=stream
             )
         else:
             return self
