@@ -27,10 +27,12 @@ class RAGChatInterface:
         self._embeder_model_name: str = embeder_model_name
         self._postgres_table_recreate: bool = postgres_table_recreate
 
+    # TODO: Fix streaming so that it works even without streaming (stream=False)
     def init_or_update_rag_chat(self,
                                 model_password: Optional[str],
                                 postgres_password: str,
                                 *,
+                                stream: bool = True,
                                 postgres_user_name: str,
                                 postgres_db_name: str,
                                 postgres_table_name: str,
@@ -54,6 +56,7 @@ class RAGChatInterface:
             if self._rag_chat is None:
                 self._rag_chat = RagChat(
                     model,
+                    stream=stream,
                     postgres_password=postgres_password,
                     postgres_user_name=postgres_user_name,
                     postgres_db_name=postgres_db_name,
@@ -68,6 +71,7 @@ class RAGChatInterface:
             else:
                 self._rag_chat = self._rag_chat.update_rag_chat(
                     model=model,
+                    stream=stream,
                     postgres_password=postgres_password,
                     postgres_user_name=postgres_user_name,
                     postgres_db_name=postgres_db_name,
@@ -455,7 +459,7 @@ if __name__ == "__main__":
     google_secret: str = get_secret(r'D:\Documents\Secrets\gemini_secret.txt')  # Put your path here # noqa: F841
     # llm_client = LLMModel("google/gemma-3-270m", system_instructions="You are concise.", secret_token=None)
     app = RAGChatInterface(
-        model_or_name="gemini-2.0-flash",
+        model_or_name="google/gemma-3-270m",
         default_title="AI Philosopher",
         llm_top_k=3,
         retriever_top_k_docs=10,
