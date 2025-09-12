@@ -1,7 +1,5 @@
-# noinspection PyPackageRequirements
-import google.generativeai as genai
 from abc import ABC, abstractmethod
-from typing import Optional, List, Dict, Any, Union, Callable, Iterable
+from typing import Optional, List, Dict, Any, Union, Callable, Iterable, Generator
 import re
 import time
 # noinspection PyPackageRequirements
@@ -18,6 +16,8 @@ from google.generativeai.types import (
 )
 # noinspection PyPackageRequirements
 from google.generativeai import ChatSession
+
+GeneratorLike = str | GenerateContentResponse | Generator[str, None, None]
 
 
 def gemini_extract_retry_seconds(exc: ResourceExhausted, default: int = 15) -> int:
@@ -76,8 +76,7 @@ def retryable(max_retries: int = 5):
 
 
 # --- Normalizers ---
-def normalize_safety(safety: Union[Dict[str, Any], safety_types.SafetySettingOptions, None]
-) -> Dict[str, Any]:
+def normalize_safety(safety: Union[Dict[str, Any], safety_types.SafetySettingOptions, None]) -> Dict[str, Any]:
     if safety is None:
         return {}
     if isinstance(safety, dict):
@@ -87,8 +86,7 @@ def normalize_safety(safety: Union[Dict[str, Any], safety_types.SafetySettingOpt
     return {"raw": safety}
 
 
-def normalize_config(cfg: Union[Dict[str, Any], generation_types.GenerationConfigType, None]
-) -> Dict[str, Any]:
+def normalize_config(cfg: Union[Dict[str, Any], generation_types.GenerationConfigType, None]) -> Dict[str, Any]:
     if cfg is None:
         return {}
     if isinstance(cfg, dict):
@@ -98,8 +96,7 @@ def normalize_config(cfg: Union[Dict[str, Any], generation_types.GenerationConfi
     return {"raw": cfg}
 
 
-def normalize_tool_config(cfg: Union[Dict[str, Any], content_types.ToolConfigType, None]
-) -> Dict[str, Any]:
+def normalize_tool_config(cfg: Union[Dict[str, Any], content_types.ToolConfigType, None]) -> Dict[str, Any]:
     if cfg is None:
         return {}
     if isinstance(cfg, dict):
@@ -109,8 +106,7 @@ def normalize_tool_config(cfg: Union[Dict[str, Any], content_types.ToolConfigTyp
     return {"raw": cfg}
 
 
-def normalize_instruction(instr: Union[str, content_types.ContentType, None]
-) -> str:
+def normalize_instruction(instr: Union[str, content_types.ContentType, None]) -> str:
     if instr is None:
         return ""
     if isinstance(instr, str):
@@ -125,94 +121,6 @@ GenerationConfigLike = Dict[str, Any] | generation_types.GenerationConfigType | 
 ToolConfigLike = Dict[str, Any] | List[Tool] | content_types.ToolConfigType | None
 SystemInstructionLike = str | content_types.ContentType | None
 ToolsLike = Any | content_types.FunctionLibraryType | None
-
-
-# This class is not strictly necessary. LLMModel can use Gemini directly.
-# However, it is useful to have a minimal Gemini-like interface that other providers can implement.
-# This allows for easier switching between providers if needed.
-class MinGeminiCompatible(ABC):
-    """
-    Abstract Gemini-like interface that other providers must implement.
-    Accepts Gemini SDK types or plain dicts/strings, normalizes them internally.
-    """
-    def __init__(
-        self,
-        model_or_name: Any | str,
-        safety_settings: SafetySettingsLike = None,
-        generation_config: GenerationConfigLike = None,
-        tools: ToolsLike = None,
-        tool_config: ToolConfigLike = None,
-        system_instruction: SystemInstructionLike = None,
-        secret_token: str | None = None,
-        normalize: bool = False,
-    ):
-        self._model: Any | None = None
-        if isinstance(model_or_name, str):
-            self._model_name = model_or_name
-        else:
-            self._model_name = getattr(model_or_name, "model_name", "anonymous-model")
-            self._model = model_or_name
-
-        self._secret_token: str | None = secret_token
-        self._tools: ToolsLike = tools
-
-        # normalize Gemini types → neutral Python dicts/strings
-        self._safety_settings: SafetySettingsLike
-        self._generation_config: GenerationConfigLike
-        self._tool_config: ToolConfigLike
-        self._system_instruction: SystemInstructionLike
-
-        self._safety_settings = normalize_safety(safety_settings) if normalize else safety_settings
-        self._generation_config = normalize_config(generation_config) if normalize else generation_config
-        self._tool_config = normalize_tool_config(tool_config) if normalize else tool_config
-        self._system_instruction = normalize_instruction(system_instruction) if normalize else system_instruction
-
-    @property
-    def model_name(self) -> str:
-        return self._model_name
-
-    @property
-    def system_instruction(self) -> SystemInstructionLike:
-        return self._system_instruction
-
-    @property
-    def generation_config(self) -> GenerationConfigLike:
-        return self._generation_config
-
-    @property
-    def safety_settings(self) -> SafetySettingsLike:
-        return self._safety_settings
-
-    @property
-    def tool_config(self) -> ToolConfigLike:
-        return self._tool_config
-
-    @property
-    def tools(self) -> ToolsLike:
-        return self._tools
-
-    @abstractmethod
-    def generate_content(self, contents: str, **kwargs) -> str:
-        """
-        Generate text for a single prompt.
-        """
-        pass
-
-    @abstractmethod
-    def start_chat(self, history: List[Dict[str, Any]]):
-        """
-        Start a chat session with an optional history.
-        Should return an object that has .send_message(prompt) -> str
-        """
-        pass
-
-    # --- transparent forwarding ---
-    def __getattr__(self, name: str):
-        """
-        If the attribute is not found on this wrapper,
-        delegate it to the underlying GenerativeModel.
-        """
-        return getattr(self._model, name)
 
 
 class GeminiChatSessionCompatible(ABC):
@@ -279,6 +187,94 @@ class GeminiChatSessionWrapper(GeminiChatSessionCompatible):
         return getattr(self._chat, name)
 
 
+# This class is not strictly necessary. LLMModel can use Gemini directly.
+# However, it is useful to have a minimal Gemini-like interface that other providers can implement.
+# This allows for easier switching between providers if needed.
+class MinGeminiCompatible(ABC):
+    """
+    Abstract Gemini-like interface that other providers must implement.
+    Accepts Gemini SDK types or plain dicts/strings, normalizes them internally.
+    """
+    def __init__(
+        self,
+        model_or_name: Any | str,
+        safety_settings: SafetySettingsLike = None,
+        generation_config: GenerationConfigLike = None,
+        tools: ToolsLike = None,
+        tool_config: ToolConfigLike = None,
+        system_instruction: SystemInstructionLike = None,
+        secret_token: str | None = None,
+        normalize: bool = False,
+    ) -> None:
+        self._model: Any | None = None
+        if isinstance(model_or_name, str):
+            self._model_name = model_or_name
+        else:
+            self._model_name = getattr(model_or_name, "model_name", "anonymous-model")
+            self._model = model_or_name
+
+        self._secret_token: str | None = secret_token
+        self._tools: ToolsLike = tools
+
+        # normalize Gemini types → neutral Python dicts/strings
+        self._safety_settings: SafetySettingsLike
+        self._generation_config: GenerationConfigLike
+        self._tool_config: ToolConfigLike
+        self._system_instruction: SystemInstructionLike
+
+        self._safety_settings = normalize_safety(safety_settings) if normalize else safety_settings
+        self._generation_config = normalize_config(generation_config) if normalize else generation_config
+        self._tool_config = normalize_tool_config(tool_config) if normalize else tool_config
+        self._system_instruction = normalize_instruction(system_instruction) if normalize else system_instruction
+
+    @property
+    def model_name(self) -> str:
+        return self._model_name
+
+    @property
+    def system_instruction(self) -> SystemInstructionLike:
+        return self._system_instruction
+
+    @property
+    def generation_config(self) -> GenerationConfigLike:
+        return self._generation_config
+
+    @property
+    def safety_settings(self) -> SafetySettingsLike:
+        return self._safety_settings
+
+    @property
+    def tool_config(self) -> ToolConfigLike:
+        return self._tool_config
+
+    @property
+    def tools(self) -> ToolsLike:
+        return self._tools
+
+    @abstractmethod
+    def generate_content(self, contents: str, **kwargs) -> GeneratorLike:
+        """
+        Generate text for a single prompt.
+        """
+        pass
+
+    @abstractmethod
+    def start_chat(self, history: List[Dict[str, Any]]) -> GeminiChatSessionCompatible:
+        """
+        Start a chat session with an optional history.
+        Should return an object that has .send_message(prompt) -> str
+        """
+        pass
+
+    # --- transparent forwarding ---
+    def __getattr__(self, name: str):
+        """
+        If the attribute is not found on this wrapper,
+        delegate it to the underlying GenerativeModel.
+        """
+        return getattr(self._model, name)
+
+
 class GeminiWrapper(MinGeminiCompatible):
     """
     Gemini wrapper that is compatible with MinGeminiCompatible but still
@@ -287,7 +283,7 @@ class GeminiWrapper(MinGeminiCompatible):
 
     def __init__(
         self,
-        model: genai.GenerativeModel,
+        model_or_name: Any | str,
         safety_settings: SafetySettingsLike = None,
         generation_config: GenerationConfigLike = None,
         tools: ToolsLike = None,
@@ -297,7 +293,7 @@ class GeminiWrapper(MinGeminiCompatible):
         normalize: bool = False,
     ):
         super().__init__(
-            model_or_name=model,
+            model_or_name=model_or_name,
             safety_settings=safety_settings,
             generation_config=generation_config,
             tools=tools,
@@ -332,7 +328,7 @@ class GeminiWrapper(MinGeminiCompatible):
     def start_chat(
             self,
             *,
-            history: Optional[Iterable[content_types.StrictContentType]] = None,
+            history: Iterable[content_types.StrictContentType] | None = None,
             enable_automatic_function_calling: bool = False,
     ) -> GeminiChatSessionWrapper:
         """

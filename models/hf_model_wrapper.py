@@ -148,7 +148,7 @@ class HFModelWrapper(MinGeminiCompatible):
                          contents: str,
                          generation_config: Optional[HFGenConfig] = None,
                          tools=None,
-                         stream=False) -> Union[str, Generator[str, None, None]]:
+                         stream=False) -> str | Generator[str, None, None]:
         if generation_config is None:
             gen_kwargs: dict = {}
         elif isinstance(generation_config, HFGenConfig):
@@ -292,7 +292,7 @@ class HFModelWrapper(MinGeminiCompatible):
         # text = out[0].get("generated_text", "")
         # return text
 
-    def start_chat(self, history: Optional[List[List[str]]] = None):
+    def start_chat(self, history: Optional[List[List[str]]] = None) -> GeminiChatSessionCompatible:
         return HFChatSession(self, history or [])
 
 

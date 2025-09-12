@@ -459,7 +459,7 @@ if __name__ == "__main__":
     google_secret: str = get_secret(r'D:\Documents\Secrets\gemini_secret.txt')  # Put your path here # noqa: F841
     # llm_client = LLMModel("google/gemma-3-270m", system_instructions="You are concise.", secret_token=None)
     app = RAGChatInterface(
-        model_or_name="google/gemma-3-270m",
+        model_or_name="gemini-2.0-flash",
         default_title="AI Philosopher",
         llm_top_k=3,
         retriever_top_k_docs=10,
