@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Optional, List, Dict, Any, Union, Callable, Iterable, Generator
+from typing import Optional, List, Dict, Union, Callable, Iterable, Iterator
 import re
 import time
 # noinspection PyPackageRequirements
@@ -16,8 +16,17 @@ from google.generativeai.types import (
 )
 # noinspection PyPackageRequirements
 from google.generativeai import ChatSession
+from typing import TypeVar, Any
 
-GeneratorLike = str | GenerateContentResponse | Generator[str, None, None]
+SafetySettingsLike = Dict[str, Any] | safety_types.SafetySettingOptions | None
+GenerationConfigLike = Dict[str, Any] | generation_types.GenerationConfigType | None
+ToolConfigLike = Dict[str, Any] | List[Tool] | content_types.ToolConfigType | None
+SystemInstructionLike = str | content_types.ContentType | None
+ToolsLike = Any | content_types.FunctionLibraryType | None
+HistoryLike = List[List[str]] | List[Dict[str, Any]] | List[Content] | None
+GeneratorLike = str | Iterator[str] | GenerateContentResponse
+TResp = TypeVar("TResp")  # type of send_message’s return
+TChat = TypeVar("TChat", bound="GeminiChatSessionCompatible[Any]")  # type of chat session
 
 
 def gemini_extract_retry_seconds(exc: ResourceExhausted, default: int = 15) -> int:
@@ -116,37 +125,30 @@ def normalize_instruction(instr: Union[str, content_types.ContentType, None]) ->
     return str(instr)
 
 
-SafetySettingsLike = Dict[str, Any] | safety_types.SafetySettingOptions | None
-GenerationConfigLike = Dict[str, Any] | generation_types.GenerationConfigType | None
-ToolConfigLike = Dict[str, Any] | List[Tool] | content_types.ToolConfigType | None
-SystemInstructionLike = str | content_types.ContentType | None
-ToolsLike = Any | content_types.FunctionLibraryType | None
-
-
 class GeminiChatSessionCompatible(ABC):
     """
     Gemini-compatible chat session interface.
     Mimics the Google SDK `start_chat` object.
     """
 
-    def __init__(self, history: Optional[Union[List[List[str]], List[Dict[str, Any]]]] = None):
-        self._history: Union[List[List[str]], Optional[List[Dict[str, Any]]]] = history or []
+    def __init__(self, history: HistoryLike) -> None:
+        self._history: HistoryLike = history or []
 
     @abstractmethod
-    def send_message(self, contents: str, **kwargs) -> str:
+    def send_message(self, contents: str, **kwargs) -> GeneratorLike:
         """
         Send a message in the ongoing chat and return the model's reply.
         """
         pass
 
-    def get_history(self) -> List[Dict[str, Any]]:
+    def get_history(self) -> HistoryLike:
         """Return the full chat history in Gemini-like format."""
         return self._history
 
 
 class GeminiChatSessionWrapper(GeminiChatSessionCompatible):
-    def __init__(self, chat_session):
-        super().__init__(history=None)
+    def __init__(self, chat_session: ChatSession, history: HistoryLike = None) -> None:
+        super().__init__(history=history)
         self._chat_session: ChatSession = chat_session
 
     @retryable(max_retries=5)
@@ -178,13 +180,13 @@ class GeminiChatSessionWrapper(GeminiChatSessionCompatible):
             request_options=request_options,
         )
 
-    def get_history(self) -> List[Content]:
+    def get_history(self) -> HistoryLike:
         # override to return SDK-tracked history
         return list(self._chat_session.history)
 
     def __getattr__(self, name: str):
         # delegate any missing methods to the underlying Gemini chat object
-        return getattr(self._chat, name)
+        return getattr(self._chat_session, name)
 
 
 # This class is not strictly necessary. LLMModel can use Gemini directly.
@@ -291,7 +293,7 @@ class GeminiWrapper(MinGeminiCompatible):
         system_instruction: SystemInstructionLike = None,
         secret_token: str | None = None,
         normalize: bool = False,
-    ):
+    ) -> None:
         super().__init__(
             model_or_name=model_or_name,
             safety_settings=safety_settings,
@@ -340,7 +342,7 @@ class GeminiWrapper(MinGeminiCompatible):
             history=history,
             enable_automatic_function_calling=enable_automatic_function_calling,
         )
-        return GeminiChatSessionWrapper(chat)  # wraps in your BaseChatSession
+        return GeminiChatSessionWrapper(chat)
 
     @property
     def model_name(self) -> str:
