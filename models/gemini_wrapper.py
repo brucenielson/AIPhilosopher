@@ -1,35 +1,22 @@
-from abc import ABC, abstractmethod
-from typing import Optional, List, Dict, Union, Callable, Iterable, Iterator, Generic, Any, TypeVar, ParamSpec
+from typing import Optional, List, Callable, Generic, Any, TypeVar, ParamSpec
 import re
 import time
 # noinspection PyPackageRequirements
 from google.api_core.exceptions import ResourceExhausted
 # noinspection PyPackageRequirements
-from google.genai.types import Content, Tool
+from google.genai.types import Content
 # noinspection PyPackageRequirements
-from google.generativeai.types import (
-    content_types,
-    generation_types,
-    safety_types,
-    helper_types,
-    GenerateContentResponse,
-)
+from google.generativeai.types import (content_types, generation_types, safety_types, helper_types,
+                                       GenerateContentResponse,
+                                       )
 # noinspection PyPackageRequirements
 from google.generativeai import ChatSession
-from models.gemini_compatibility import MinGeminiCompatible
+from models.gemini_compatibility import (MinGeminiCompatible, SafetySettingsLike, GenerationConfigLike, ToolConfigLike,
+                                         SystemInstructionLike, ToolsLike, HistoryLike, ContentLike, TResponse,
+                                         GeminiChatSessionCompatible
+                                         )
 import functools
 from utilities.general_utils import logger
-
-
-SafetySettingsLike = Dict[str, Any] | safety_types.SafetySettingOptions | None
-GenerationConfigLike = Dict[str, Any] | generation_types.GenerationConfigType | None
-ToolConfigLike = Dict[str, Any] | List[Tool] | content_types.ToolConfigType | None
-SystemInstructionLike = str | content_types.ContentType | None
-ToolsLike = Any | content_types.FunctionLibraryType | None
-HistoryLike = List[List[str]] | Iterable[Union[str, Dict[str, Any], Content, content_types.StrictContentType]]
-GeneratorLike = Union[str, Iterator[str], Iterator[content_types.StrictContentType], GenerateContentResponse]
-ContentLike = Union[str, content_types.ContentType]
-TResponse = TypeVar("TResponse", bound=GeneratorLike)  # type of send_message’s and generate_content return
 
 
 def gemini_extract_retry_seconds(exc: ResourceExhausted, default: int = 15) -> int:
@@ -130,27 +117,6 @@ def normalize_history_to_gemini_content(
             raise TypeError(f"Unsupported history item type: {type(item)}")
 
     return normalized
-
-
-class GeminiChatSessionCompatible(ABC, Generic[TResponse]):
-    """
-    Gemini-compatible chat session interface.
-    Mimics the Google SDK `start_chat` object.
-    """
-
-    def __init__(self, history: Optional[HistoryLike]) -> None:
-        self._history: HistoryLike = history or []
-
-    @abstractmethod
-    def send_message(self, contents: ContentLike, **kwargs) -> TResponse:
-        """
-        Send a message in the ongoing chat and return the model's reply.
-        """
-        pass
-
-    def get_history(self) -> HistoryLike:
-        """Return the full chat history in Gemini-like format."""
-        return self._history
 
 
 class GeminiChatSessionWrapper(GeminiChatSessionCompatible[TResponse], Generic[TResponse]):

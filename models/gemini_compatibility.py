@@ -3,12 +3,8 @@ from typing import Optional, List, Dict, Union, Iterable, Iterator, Generic, Any
 # noinspection PyPackageRequirements
 from google.genai.types import Content, Tool
 # noinspection PyPackageRequirements
-from google.generativeai.types import (
-    content_types,
-    generation_types,
-    safety_types,
-    GenerateContentResponse,
-)
+from google.generativeai.types import (content_types, generation_types, safety_types, GenerateContentResponse,
+                                       )
 
 SafetySettingsLike = Dict[str, Any] | safety_types.SafetySettingOptions | None
 GenerationConfigLike = Dict[str, Any] | generation_types.GenerationConfigType | None
@@ -148,14 +144,14 @@ class MinGeminiCompatible(ABC, Generic[TResponse]):
         return self._tools
 
     @abstractmethod
-    def generate_content(self, contents: str, **kwargs) -> TResponse:
+    def generate_content(self, contents: ContentLike, **kwargs) -> TResponse:
         """
         Generate text for a single prompt.
         """
         pass
 
     @abstractmethod
-    def start_chat(self, history: List[Dict[str, Any]]) -> GeminiChatSessionCompatible[TResponse]:
+    def start_chat(self, history: HistoryLike) -> GeminiChatSessionCompatible[TResponse]:
         """
         Start a chat session with an optional history.
         Should return an object that has .send_message(prompt) -> str
