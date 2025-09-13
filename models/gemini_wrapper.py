@@ -57,6 +57,7 @@ def with_retry(fn: Callable, *args, max_retries: int = 5, **kwargs) -> Any:
             return fn(*args, **kwargs)
         except ResourceExhausted as e:
             delay = gemini_extract_retry_seconds(e) or 15
+            logger.warning(f"[Retry {attempts + 1}/{max_retries}] Gemini rate limit exceeded, retrying in {delay}s")
             time.sleep(delay)
         except Exception as e:
             msg = str(e).lower()
