@@ -12,7 +12,7 @@ from transformers import (
 )
 from transformers.generation import GenerationConfig as HFGenConfig
 import threading
-from models.gemini_compatibility import MinGeminiCompatible, GeminiChatSessionCompatible
+from models.gemini_compatibility import GeminiCompatible, GeminiChatSessionCompatible
 from huggingface_hub import HfFolder
 from utilities.general_utils import logger
 
@@ -55,7 +55,7 @@ DECODING_PRESETS = {
 
 
 # ----- Hugging Face wrapper: provides a minimal compatible interface -----
-class HFModelWrapper(MinGeminiCompatible):
+class HFModelWrapper(GeminiCompatible):
     """
     Minimal wrapper around an HF text-generation pipeline that exposes:
      - generate_content(contents=..., generation_config=..., tools=..., stream=...)

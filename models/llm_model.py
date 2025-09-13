@@ -11,7 +11,7 @@ from models.gemini_utils import (initialize_gemini_model,
                                  chat_to_gemini_format,
                                  get_gemini_models,
                                  )
-from models.gemini_compatibility import MinGeminiCompatible
+from models.gemini_compatibility import GeminiCompatible
 from models.gemini_wrapper import GeminiWrapper
 from types import GeneratorType
 import huggingface_hub
@@ -19,7 +19,7 @@ from utilities.general_utils import logger
 
 
 class LLMModel:
-    def __init__(self, model_or_name: Union[str, genai.GenerativeModel, MinGeminiCompatible, Any],
+    def __init__(self, model_or_name: Union[str, genai.GenerativeModel, GeminiCompatible, Any],
                  *,
                  secret_token: Optional[str] = None,
                  system_instruction: Optional[str] = None,
@@ -30,7 +30,7 @@ class LLMModel:
         """
         Initialize the LLMModel with either a model name or an existing model instance.
         Args:
-            model_or_name (Union[str, genai.GenerativeModel, MinGeminiCompatible, Any]):
+            model_or_name (Union[str, genai.GenerativeModel, GeminiCompatible, Any]):
                 The model name as a string (for Gemini or Hugging Face) or an existing model instance.
                 Any model that implements the MinGeminiCompatible interface can be used.
                 In fact, it is duck typed, so if the model has the necessary methods, it will work.
@@ -41,12 +41,12 @@ class LLMModel:
             **generation_kwargs: Additional generation parameters to override defaults in config.
         """
 
-        self._model: Optional[Union[genai.GenerativeModel, MinGeminiCompatible, Any]] = None
+        self._model: Optional[Union[genai.GenerativeModel, GeminiCompatible, Any]] = None
         self._secret_token: Optional[str] = secret_token
         self._model_name: str
         if isinstance(model_or_name, str):
             self._model_name = model_or_name
-        elif isinstance(model_or_name, (genai.GenerativeModel, MinGeminiCompatible)):
+        elif isinstance(model_or_name, (genai.GenerativeModel, GeminiCompatible)):
             try:
                 self._model_name = model_or_name.model_name
             except AttributeError:
@@ -68,8 +68,8 @@ class LLMModel:
         if isinstance(model_or_name, genai.GenerativeModel):
             # If an existing Gemini model wrap it with our interface
             self._model = GeminiWrapper(model_or_name)
-        elif isinstance(model_or_name, MinGeminiCompatible):
-            # If an existing MinGeminiCompatible model is provided, use it directly.
+        elif isinstance(model_or_name, GeminiCompatible):
+            # If an existing GeminiCompatible model is provided, use it directly.
             self._model = model_or_name
         # String identifier cases
         elif isinstance(model_or_name, str):
@@ -193,8 +193,8 @@ class LLMModel:
                          **generation_kwargs: Any
                          ) -> Union[GenerateContentResponse, GeneratorType, str]:
 
-        if isinstance(self._model, MinGeminiCompatible) or hasattr(self._model, "generate_content"):
-            # If the model is MinGeminiCompatible or has generate_content, use that method directly.
+        if isinstance(self._model, GeminiCompatible) or hasattr(self._model, "generate_content"):
+            # If the model is GeminiCompatible or has generate_content, use that method directly.
             response = self._model.generate_content(
                 contents=message,
                 generation_config=config if config is not None else self._config,

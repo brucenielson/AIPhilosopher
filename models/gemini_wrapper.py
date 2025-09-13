@@ -11,7 +11,7 @@ from google.generativeai.types import (content_types, generation_types, safety_t
                                        )
 # noinspection PyPackageRequirements
 from google.generativeai import ChatSession
-from models.gemini_compatibility import (MinGeminiCompatible, SafetySettingsLike, GenerationConfigLike, ToolConfigLike,
+from models.gemini_compatibility import (GeminiCompatible, SafetySettingsLike, GenerationConfigLike, ToolConfigLike,
                                          SystemInstructionLike, ToolsLike, HistoryLike, ContentLike, TResponse,
                                          GeminiChatSessionCompatible
                                          )
@@ -162,9 +162,9 @@ class GeminiChatSessionWrapper(GeminiChatSessionCompatible[TResponse], Generic[T
         return getattr(self._chat_session, name)
 
 
-class GeminiWrapper(MinGeminiCompatible[GenerateContentResponse]):
+class GeminiWrapper(GeminiCompatible[GenerateContentResponse]):
     """
-    Gemini wrapper that is compatible with MinGeminiCompatible but still
+    Gemini wrapper that is compatible with GeminiCompatible but still
     exposes the full underlying GenerativeModel API transparently.
     """
 

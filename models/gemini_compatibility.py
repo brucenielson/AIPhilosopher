@@ -82,7 +82,7 @@ class GeminiChatSessionCompatible(ABC, Generic[TResponse]):
 # This class is not strictly necessary. LLMModel can use Gemini directly.
 # However, it is useful to have a minimal Gemini-like interface that other providers can implement.
 # This allows for easier switching between providers if needed.
-class MinGeminiCompatible(ABC, Generic[TResponse]):
+class GeminiCompatible(ABC, Generic[TResponse]):
     """
     Abstract Gemini-like interface that other providers must implement.
     Accepts Gemini SDK types or plain dicts/strings, normalizes them internally.
