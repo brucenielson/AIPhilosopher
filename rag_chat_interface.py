@@ -5,7 +5,7 @@ import gradio as gr
 from typing import Optional, Union
 from rag_chat import RagChat
 from models.llm_model import LLMModel
-from utilities.general_utils import get_secret
+from utilities.general_utils import get_secret, logger
 
 
 class RAGChatInterface:
@@ -85,7 +85,7 @@ class RAGChatInterface:
                 )
 
         except Exception as e:
-            print(f"Error loading RagChat: {e}")
+            logger.error(f"Error loading RagChat: {e}")
             self._rag_chat = None
 
     @staticmethod

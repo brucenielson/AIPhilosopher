@@ -1,3 +1,10 @@
+import logging
+
+logger = logging.getLogger(__name__)
+if not logger.hasHandlers():
+    logging.basicConfig(level=logging.WARNING)
+
+
 def get_secret(secret_file: str) -> str:
     """
     Read a secret from a file.

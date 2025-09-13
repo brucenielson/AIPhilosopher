@@ -11,9 +11,11 @@ from models.gemini_utils import (initialize_gemini_model,
                                  chat_to_gemini_format,
                                  get_gemini_models,
                                  )
-from models.gemini_compatibility import MinGeminiCompatible, GeminiWrapper
+from models.gemini_compatibility import MinGeminiCompatible
+from models.gemini_wrapper import GeminiWrapper
 from types import GeneratorType
 import huggingface_hub
+from utilities.general_utils import logger
 
 
 class LLMModel:
@@ -94,7 +96,7 @@ class LLMModel:
                 raise ValueError(f"Invalid model name: {model_or_name}."
                                  f"Valid Gemini models are: {', '.join(get_gemini_models())}.")
         else:
-            print("Warning: model_or_name is not a recognized type. Attempting to use it as-is.")
+            logger.warning("Warning: model_or_name is not a recognized type. Attempting to use it as-is.")
             self._model = model_or_name
 
     def is_google_model(self) -> bool:
@@ -132,14 +134,14 @@ class LLMModel:
                 self._secret_token = secret_token
                 self._is_logged_in = True
             except Exception as e:
-                print(f"Failed to configure Gemini API with provided token: {e}")
+                logger.error(f"Failed to configure Gemini API with provided token: {e}")
         elif self.is_hugging_face_model():
             try:
                 huggingface_hub.login(token=secret_token)
                 self._secret_token = secret_token
                 self._is_logged_in = True
             except Exception as e:
-                print(f"Failed to authenticate Hugging Face model with provided token: {e}")
+                logger.error(f"Failed to authenticate Hugging Face model with provided token: {e}")
         else:
             raise TypeError("Underlying model does not support login with a password/token.")
 

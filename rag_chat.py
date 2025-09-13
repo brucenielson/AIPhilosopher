@@ -11,6 +11,7 @@ from haystack import Document
 from typing import Optional, List, Iterator, Union, Tuple, Generator, Self
 from react_agent import format_document, ReActAgent
 from models.llm_model import LLMModel
+from utilities.general_utils import logger
 
 
 class RagChat:
@@ -282,7 +283,7 @@ class RagChat:
             try:
                 relevant_numbers = [int(num.strip()) for num in response_text.split(',') if num.strip().isdigit()]
             except Exception as parse_e:
-                print(f"Error parsing Gemini response: {parse_e}")
+                logger.error(f"Error parsing Gemini response: {parse_e}")
                 time.sleep(1)
                 relevant_numbers = []
 

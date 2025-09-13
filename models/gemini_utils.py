@@ -3,7 +3,7 @@ import google.generativeai as genai
 # noinspection PyPackageRequirements
 from google.auth.exceptions import DefaultCredentialsError
 from typing import Optional, List, Dict, Any, Union
-from models.gemini_compatibility import GeminiWrapper
+from models.gemini_wrapper import GeminiWrapper
 
 # Useful links on Gemini:
 # https://medium.com/%40adarsh.ajay/unleashing-the-power-of-google-gemini-with-python-a-step-by-step-guide-ed5e2ea1818f

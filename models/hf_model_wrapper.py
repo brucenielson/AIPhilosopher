@@ -14,6 +14,7 @@ from transformers.generation import GenerationConfig as HFGenConfig
 import threading
 from models.gemini_compatibility import MinGeminiCompatible, GeminiChatSessionCompatible
 from huggingface_hub import HfFolder
+from utilities.general_utils import logger
 
 TRITON_REQUIRED_CAPABILITY = 7  # minimum GPU capability for triton backend
 
@@ -94,17 +95,17 @@ class HFModelWrapper(MinGeminiCompatible):
         # Check for GPU availability
         if self._device == "auto" and torch.cuda.is_available():
             self._device = "cuda"
-            print("Using device: CUDA (GPU)")
+            logger.warning("Using device: CUDA (GPU)")
             major, minor = torch.cuda.get_device_capability()
             if major < TRITON_REQUIRED_CAPABILITY:
-                print(f"GPU capability {major}.{minor} too old for Triton, disabling torch.compile.")
+                logger.warning(f"GPU capability {major}.{minor} too old for Triton, disabling torch.compile.")
                 # noinspection PyProtectedMember
                 torch._dynamo.config.disable = True
                 # noinspection PyProtectedMember
                 torch._dynamo.config.suppress_errors = True
         else:
             self._device = "cpu"
-            print("Using device: CPU")
+            logger.warning("Using device: CPU")
 
         # Load tokenizer and model with token
         # create tokenizer (we keep it to check token lengths)
@@ -173,11 +174,11 @@ class HFModelWrapper(MinGeminiCompatible):
         ).to(self._model.device)
 
         ids = inputs["input_ids"]
-        print("max token id:", ids.max().item())
-        print("vocab size:", self._model.config.vocab_size)
+        logger.warning("max token id: %d", ids.max().item())
+        logger.warning("vocab size: %d", self._model.config.vocab_size)
 
-        print("model max positions:", self._model.config.max_position_embeddings)
-        print("input length:", inputs["input_ids"].shape[1])
+        logger.warning("model max positions: %d", self._model.config.max_position_embeddings)
+        logger.warning("input length: %d", inputs["input_ids"].shape[1])
 
         if not stream:
             outputs: torch.LongTensor = self._model.generate(**inputs, **gen_kwargs)
