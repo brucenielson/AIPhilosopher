@@ -6,15 +6,27 @@ from google.api_core.exceptions import ResourceExhausted
 # noinspection PyPackageRequirements
 from google.genai.types import Content
 # noinspection PyPackageRequirements
-from google.generativeai.types import (content_types, generation_types, safety_types, helper_types,
-                                       GenerateContentResponse,
-                                       )
+from google.generativeai.types import (
+    content_types,
+    generation_types,
+    safety_types,
+    helper_types,
+    GenerateContentResponse,
+)
 # noinspection PyPackageRequirements
 from google.generativeai import ChatSession
-from models.gemini_compatibility import (GeminiCompatible, SafetySettingsLike, GenerationConfigLike, ToolConfigLike,
-                                         SystemInstructionLike, ToolsLike, HistoryLike, ContentLike, TResponse,
-                                         GeminiChatSessionCompatible
-                                         )
+from models.gemini_compatibility import (
+    GeminiCompatible,
+    SafetySettingsLike,
+    GenerationConfigLike,
+    ToolConfigLike,
+    SystemInstructionLike,
+    ToolsLike,
+    HistoryLike,
+    ContentLike,
+    TResponse,
+    GeminiChatSessionCompatible,
+)
 import functools
 from utilities.general_utils import logger
 
@@ -39,29 +51,24 @@ def with_retry(fn: Callable, *args, max_retries: int = 5, **kwargs) -> Any:
     Call a function with retry handling for Gemini and HF-like rate-limit errors.
     Retries up to `max_retries` times before raising.
     """
-
     attempts = 0
     while attempts <= max_retries:
         try:
             return fn(*args, **kwargs)
         except ResourceExhausted as e:
             delay = gemini_extract_retry_seconds(e) or 15
-            logger.warning(f"\nGemini Rate limit exceeded. Retrying in {delay} seconds... (attempt {attempts+1})")
             time.sleep(delay)
-
         except Exception as e:
             msg = str(e).lower()
             if "rate limit" in msg or "429" in msg:
                 delay = 15
-                logger.warning(f"Rate limit-like error detected from provider. "
-                               f"Retrying in {delay} seconds... (attempt {attempts+1})")
+                logger.warning(f"[Retry {attempts + 1}/{max_retries}] "
+                               f"Rate-limit-like error detected, retrying in {delay}s")
                 time.sleep(delay)
             else:
                 logger.error(f"Error during chat message sending: {e}")
                 raise
-
         attempts += 1
-
     raise RuntimeError(f"Max retries exceeded ({max_retries}) for {fn.__name__}")
 
 
@@ -95,10 +102,11 @@ def normalize_history_to_gemini_content(
     normalized: List[content_types.StrictContentType] = []
 
     # Handle the special List[List[str]] case
-    if isinstance(history, list) and history and all(
-        isinstance(item, list) and len(item) == 2 for item in history
-    ):
-        for user_text, model_text in history:
+    if isinstance(history, list) and history and all(isinstance(item, list) for item in history):
+        for idx, item in enumerate(history):
+            if len(item) != 2:
+                raise ValueError(f"Inner history list at index {idx} must have exactly 2 elements: [user, model]")
+            user_text, model_text = item
             normalized.append(content_types.to_content(user_text))
             normalized.append(content_types.to_content(model_text))
         return normalized
@@ -126,15 +134,15 @@ class GeminiChatSessionWrapper(GeminiChatSessionCompatible[TResponse], Generic[T
 
     @retryable(max_retries=5)
     def send_message(
-            self,
-            content: ContentLike,
-            *,
-            generation_config: Optional[generation_types.GenerationConfigType] = None,
-            safety_settings: Optional[safety_types.SafetySettingOptions] = None,
-            stream: bool = False,
-            tools: Optional[content_types.FunctionLibraryType] = None,
-            tool_config: Optional[content_types.ToolConfigType] = None,
-            request_options: Optional[helper_types.RequestOptionsType] = None,
+        self,
+        content: ContentLike,
+        *,
+        generation_config: Optional[generation_types.GenerationConfigType] = None,
+        safety_settings: Optional[safety_types.SafetySettingOptions] = None,
+        stream: bool = False,
+        tools: Optional[content_types.FunctionLibraryType] = None,
+        tool_config: Optional[content_types.ToolConfigType] = None,
+        request_options: Optional[helper_types.RequestOptionsType] = None,
     ) -> TResponse:
         """
         Wrapper around Gemini's ChatSession.send_message with retry logic.
@@ -192,16 +200,18 @@ class GeminiWrapper(GeminiCompatible[GenerateContentResponse]):
 
     @retryable(max_retries=5)
     def generate_content(
-            self,
-            contents: content_types.ContentsType,
-            *,
-            generation_config: Optional[generation_types.GenerationConfigType] = None,
-            safety_settings: Optional[safety_types.SafetySettingOptions] = None,
-            stream: bool = False,
-            tools: Optional[content_types.FunctionLibraryType] = None,
-            tool_config: Optional[content_types.ToolConfigType] = None,
-            request_options: Optional[helper_types.RequestOptionsType] = None,
+        self,
+        contents: content_types.ContentsType,
+        *,
+        generation_config: Optional[generation_types.GenerationConfigType] = None,
+        safety_settings: Optional[safety_types.SafetySettingOptions] = None,
+        stream: bool = False,
+        tools: Optional[content_types.FunctionLibraryType] = None,
+        tool_config: Optional[content_types.ToolConfigType] = None,
+        request_options: Optional[helper_types.RequestOptionsType] = None,
     ) -> TResponse:
+        if self._model is None:
+            raise RuntimeError("Underlying model instance is not set. Provide a model object, not a string.")
         return self._model.generate_content(
             contents,
             generation_config=generation_config,
@@ -213,15 +223,18 @@ class GeminiWrapper(GeminiCompatible[GenerateContentResponse]):
         )
 
     def start_chat(
-            self,
-            *,
-            history: Optional[HistoryLike] = None,
-            enable_automatic_function_calling: bool = False,
+        self,
+        *,
+        history: Optional[HistoryLike] = None,
+        enable_automatic_function_calling: bool = False,
     ) -> GeminiChatSessionWrapper[TResponse]:
         """
         Wrapper around Gemini's start_chat.
         Mirrors the official signature.
         """
+        if self._model is None:
+            raise RuntimeError("Underlying model instance is not set. Provide a model object, not a string.")
+
         history = normalize_history_to_gemini_content(history)
         chat = self._model.start_chat(
             history=history,
@@ -231,4 +244,6 @@ class GeminiWrapper(GeminiCompatible[GenerateContentResponse]):
 
     @property
     def model_name(self) -> str:
+        if self._model is None:
+            raise RuntimeError("Underlying model instance is not set. Provide a model object, not a string.")
         return self._model.model_name

@@ -148,7 +148,7 @@ class GeminiCompatible(ABC, Generic[TResponse]):
 
     def __init__(
         self,
-        model_or_name: Any | str,
+        model_or_name: Any,
         safety_settings: SafetySettingsLike = None,
         generation_config: GenerationConfigLike = None,
         tools: ToolsLike = None,
