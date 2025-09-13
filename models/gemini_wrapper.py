@@ -33,8 +33,14 @@ from utilities.general_utils import logger
 
 def gemini_extract_retry_seconds(exc: ResourceExhausted, default: int = 15) -> int:
     """
-    Extracts retry_delay.seconds from the exception's details text.
-    Falls back to `default` if not found or parsing fails.
+    Extract the suggested retry delay in seconds from a ResourceExhausted exception.
+
+    Args:
+        exc: The ResourceExhausted exception instance.
+        default: Default number of seconds to retry if parsing fails.
+
+    Returns:
+        The number of seconds to wait before retrying the request.
     """
     try:
         details = str(getattr(exc, "details", ""))
@@ -48,8 +54,24 @@ def gemini_extract_retry_seconds(exc: ResourceExhausted, default: int = 15) -> i
 
 def with_retry(fn: Callable, *args, max_retries: int = 5, **kwargs) -> Any:
     """
-    Call a function with retry handling for Gemini and HF-like rate-limit errors.
-    Retries up to `max_retries` times before raising.
+    Call a function with retry logic for rate-limit errors from Gemini or similar APIs.
+
+    Handles:
+      - ResourceExhausted exceptions with optional retry_delay.
+      - Generic rate-limit errors containing 'rate limit' or HTTP 429.
+
+    Args:
+        fn: The function to call.
+        *args: Positional arguments for the function.
+        max_retries: Maximum number of retries before failing.
+        **kwargs: Keyword arguments for the function.
+
+    Returns:
+        The return value of the function.
+
+    Raises:
+        RuntimeError: If the maximum number of retries is exceeded.
+        Exception: Any other exceptions raised by `fn` not matching rate-limit errors.
     """
     attempts = 0
     while attempts <= max_retries:
@@ -78,6 +100,15 @@ R = TypeVar("R")
 
 
 def retryable(max_retries: int = 5) -> Callable[[Callable[P, R]], Callable[P, R]]:
+    """
+    Decorator to apply retry logic to a function using `with_retry`.
+
+    Args:
+        max_retries: Maximum number of retry attempts.
+
+    Returns:
+        A decorator function.
+    """
     def decorator(fn: Callable[P, R]) -> Callable[P, R]:
         @functools.wraps(fn)
         def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
@@ -91,11 +122,21 @@ def normalize_history_to_gemini_content(
     history: Optional[HistoryLike]
 ) -> List[content_types.StrictContentType]:
     """
-    Convert a heterogeneous history input to a flat list of StrictContentType objects.
+    Convert a heterogeneous history input into a flat list of StrictContentType objects.
 
     Supports:
-    - List[List[str]]  → each inner list [user, model] becomes two items
-    - Iterable[Union[str, dict, Content, StrictContentType]]
+        - List[List[str]]: each inner list [user, model] becomes two StrictContentType items.
+        - Iterable[Union[str, dict, Content, StrictContentType]]: converts each element individually.
+
+    Args:
+        history: Optional chat history in a variety of formats.
+
+    Returns:
+        A list of StrictContentType objects suitable for Gemini SDK.
+
+    Raises:
+        ValueError: If an inner list in list-of-lists format does not have exactly 2 elements.
+        TypeError: If an unsupported item type is found in the history iterable.
     """
     if history is None:
         return []
@@ -129,7 +170,23 @@ def normalize_history_to_gemini_content(
 
 
 class GeminiChatSessionWrapper(GeminiChatSessionCompatible[TResponse], Generic[TResponse]):
+    """
+    Wrapper around Gemini ChatSession to make it compatible with GeminiChatSessionCompatible interface.
+
+    Adds:
+      - Retry logic for sending messages.
+      - Conversion of string messages into SDK Content objects.
+      - Transparent access to underlying ChatSession methods.
+    """
+
     def __init__(self, chat_session: ChatSession, history: Optional[HistoryLike] = None) -> None:
+        """
+        Initialize a GeminiChatSessionWrapper.
+
+        Args:
+            chat_session: The underlying Gemini ChatSession instance.
+            history: Optional initial chat history.
+        """
         super().__init__(history=history)
         self._chat_session: ChatSession = chat_session
 
@@ -146,8 +203,22 @@ class GeminiChatSessionWrapper(GeminiChatSessionCompatible[TResponse], Generic[T
         request_options: Optional[helper_types.RequestOptionsType] = None,
     ) -> TResponse:
         """
-        Wrapper around Gemini's ChatSession.send_message with retry logic.
-        Mirrors the official Google signature.
+        Send a message through the wrapped ChatSession with retry handling.
+
+        Args:
+            content: The message content (string or ContentType object).
+            generation_config: Optional generation configuration.
+            safety_settings: Optional safety settings.
+            stream: Whether to stream the response.
+            tools: Optional tools library.
+            tool_config: Optional tool configuration.
+            request_options: Optional request options.
+
+        Returns:
+            The response from the ChatSession.
+
+        Raises:
+            Exception: Any exception not related to rate limits will propagate.
         """
         if isinstance(content, str):
             content = content_types.to_content(content)
@@ -163,18 +234,33 @@ class GeminiChatSessionWrapper(GeminiChatSessionCompatible[TResponse], Generic[T
         )
 
     def get_history(self) -> HistoryLike:
-        # override to return SDK-tracked history
+        """
+        Return the chat session's current history.
+
+        Returns:
+            The history list from the underlying ChatSession.
+        """
         return list(self._chat_session.history)
 
     def __getattr__(self, name: str):
-        # delegate any missing methods to the underlying Gemini chat object
+        """
+        Delegate missing attributes to the underlying ChatSession.
+
+        Args:
+            name: Attribute name.
+
+        Returns:
+            The attribute from the underlying ChatSession.
+        """
         return getattr(self._chat_session, name)
 
 
 class GeminiWrapper(GeminiCompatible[GenerateContentResponse]):
     """
-    Gemini wrapper that is compatible with GeminiCompatible but still
-    exposes the full underlying GenerativeModel API transparently.
+    High-level wrapper around Gemini generative models providing:
+      - Compatibility with GeminiCompatible interface.
+      - Transparent access to underlying model methods.
+      - Retry logic on rate-limit errors for generate_content and start_chat.
     """
 
     def __init__(
@@ -188,6 +274,19 @@ class GeminiWrapper(GeminiCompatible[GenerateContentResponse]):
         secret_token: str | None = None,
         normalize: bool = False,
     ) -> None:
+        """
+        Initialize the GeminiWrapper.
+
+        Args:
+            model_or_name: Either a model object or a string model name.
+            safety_settings: Optional safety settings.
+            generation_config: Optional generation configuration.
+            tools: Optional tools library.
+            tool_config: Optional tool configuration.
+            system_instruction: Optional system instruction string/content.
+            secret_token: Optional API secret token.
+            normalize: Whether to normalize Gemini types to dict/string.
+        """
         super().__init__(
             model_or_name=model_or_name,
             safety_settings=safety_settings,
@@ -211,6 +310,24 @@ class GeminiWrapper(GeminiCompatible[GenerateContentResponse]):
         tool_config: Optional[content_types.ToolConfigType] = None,
         request_options: Optional[helper_types.RequestOptionsType] = None,
     ) -> TResponse:
+        """
+        Generate content from the underlying Gemini model with retry support.
+
+        Args:
+            contents: The input prompt(s).
+            generation_config: Optional generation configuration.
+            safety_settings: Optional safety settings.
+            stream: Whether to stream the output.
+            tools: Optional tools library.
+            tool_config: Optional tool configuration.
+            request_options: Optional request options.
+
+        Returns:
+            The generated response.
+
+        Raises:
+            RuntimeError: If the underlying model instance is not set.
+        """
         if self._model is None:
             raise RuntimeError("Underlying model instance is not set. Provide a model object, not a string.")
         return self._model.generate_content(
@@ -230,8 +347,17 @@ class GeminiWrapper(GeminiCompatible[GenerateContentResponse]):
         enable_automatic_function_calling: bool = False,
     ) -> GeminiChatSessionWrapper[TResponse]:
         """
-        Wrapper around Gemini's start_chat.
-        Mirrors the official signature.
+        Start a chat session with the underlying Gemini model.
+
+        Args:
+            history: Optional chat history.
+            enable_automatic_function_calling: Whether to allow automatic function calling.
+
+        Returns:
+            A GeminiChatSessionWrapper instance.
+
+        Raises:
+            RuntimeError: If the underlying model instance is not set.
         """
         if self._model is None:
             raise RuntimeError("Underlying model instance is not set. Provide a model object, not a string.")
@@ -245,6 +371,15 @@ class GeminiWrapper(GeminiCompatible[GenerateContentResponse]):
 
     @property
     def model_name(self) -> str:
+        """
+        Return the name of the underlying Gemini model.
+
+        Returns:
+            Model name as a string.
+
+        Raises:
+            RuntimeError: If the underlying model instance is not set.
+        """
         if self._model is None:
             raise RuntimeError("Underlying model instance is not set. Provide a model object, not a string.")
         return self._model.model_name
