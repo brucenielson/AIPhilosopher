@@ -78,7 +78,6 @@ class RAGChatInterface:
                     postgres_table_name=postgres_table_name,
                     postgres_host=postgres_host,
                     postgres_port=int(postgres_port),
-                    system_instructions=system_instructions,
                     llm_top_k=llm_top_k,
                     retriever_top_k_docs=retriever_top_k_docs,
                     embedder_model_name=embedder_model_name,
