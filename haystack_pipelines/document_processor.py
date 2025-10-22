@@ -166,7 +166,11 @@ class DocumentProcessor:
         Draw and save visual representations of the document conversion pipelines.
         """
         if self._doc_convert_pipeline is not None:
-            self._doc_convert_pipeline.draw(Path("Document Conversion Pipeline.png"))
+            try:
+                self._doc_convert_pipeline.draw(Path("Document Conversion Pipeline.png"))
+            except Exception as e:
+                print(f"An error occurred while drawing the pipeline: {e}")
+
 
     def _print_verbose(self, *args, **kwargs) -> None:
         if self._verbose:
@@ -376,11 +380,11 @@ def main() -> None:
     user_name: str = ""
     db_name: str = ""
     if doc_store_type == DocumentStoreType.Pgvector:
-        password = get_secret(r'D:\Documents\Secrets\postgres_password.txt')
+        password = get_secret(r'C:\Documents\Secrets\postgres_password.txt')
         user_name = "postgres"
         db_name = "postgres"
     elif doc_store_type == DocumentStoreType.Neo4j:
-        password = get_secret(r'D:\Documents\Secrets\neo4j_password.txt')
+        password = get_secret(r'C:\Documents\Secrets\neo4j_password.txt')
         user_name = "neo4j"
         db_name = "neo4j"
     include_outputs_from: Optional[set[str]] = None  # {"final_counter"}

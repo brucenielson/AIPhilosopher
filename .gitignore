@@ -163,8 +163,8 @@ cython_debug/
 
 *.epub
 *.pdf
-/post_documents.txt
-/pre_documents.txt
+post_documents.txt
+pre_documents.txt
 *.gguf
 test_docling.md
 test_pymupdf4llm.md

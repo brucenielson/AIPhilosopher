@@ -26,7 +26,14 @@ def get_lemmatizer():
     """Lazily load and cache the WordNetLemmatizer."""
     global _lemmatizer
     if _lemmatizer is None:
+        import nltk
         from nltk.stem import WordNetLemmatizer
+        # Ensure WordNet is available
+        try:
+            nltk.data.find('corpora/wordnet')
+        except LookupError:
+            nltk.download('wordnet', quiet=True)
+            nltk.download('omw-1.4', quiet=True)  # Optional but helpful
         _lemmatizer = WordNetLemmatizer()
     return _lemmatizer
 

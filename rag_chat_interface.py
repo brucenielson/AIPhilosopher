@@ -455,7 +455,7 @@ if __name__ == "__main__":
     )
     # llm_client = LLMModel(model_or_name="gemini-2.0-flash", "google/gemma-2-2b-it", "google/gemma-3-270m"
     # system_instructions=sys_instruction)
-    google_secret: str = get_secret(r'D:\Documents\Secrets\gemini_secret.txt')  # Put your path here # noqa: F841
+    google_secret: str = get_secret(r'C:\Documents\Secrets\gemini_secret.txt')  # Put your path here # noqa: F841
     # llm_client = LLMModel("google/gemma-3-270m", system_instructions="You are concise.", secret_token=None)
     app = RAGChatInterface(
         model_or_name="gemini-2.0-flash",
@@ -465,3 +465,17 @@ if __name__ == "__main__":
     )
     interface = app.build_interface()
     interface.launch(debug=True, max_file_size=100 * gr.FileSize.MB)
+
+
+# How to install piecemeal
+# Get-Content requirements.txt | ForEach-Object {
+#     $pkg = $_.Trim()
+#     if ($pkg -and -not $pkg.StartsWith("#")) {
+#         Write-Host "Installing $pkg ..."
+#         pip install $pkg
+#         if ($LASTEXITCODE -ne 0) {
+#             Write-Host "⚠️ Failed: $pkg" -ForegroundColor Yellow
+#             Add-Content failed.txt $pkg
+#         }
+#     }
+# }
